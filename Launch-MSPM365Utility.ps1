@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.3.0-beta'
+$script:Version    = '0.4.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -65,6 +65,18 @@ $script:Modules = @(
         Title       = 'Remove Distribution List Members'
         Category    = 'Administration'
         Description = 'Bulk remove members from a distribution list from a pasted email list.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Add-BulkContact.ps1'
+        Title       = 'Bulk Contact Creation'
+        Category    = 'Administration'
+        Description = 'Bulk create external Mail Contacts from a paste-list. Prompts per duplicate.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Add-BulkGuestUser.ps1'
+        Title       = 'Bulk Guest User Invite'
+        Category    = 'Administration'
+        Description = 'Bulk send B2B guest invitations. Auto-detects tenant redirect URL. Prompts per duplicate.'
     }
 )
 

@@ -27,6 +27,8 @@ Use the **View Results** button in the launcher to jump straight to the report f
 | `Modules/Get-TenantMFAStatus.ps1` | MFA status and authentication methods for licensed users (guests excluded) |
 | `Modules/Add-DistroMember.ps1` | Add a member to a distribution group |
 | `Modules/Remove-DistroMember.ps1` | Remove a member from a distribution group |
+| `Modules/Add-BulkContact.ps1` | Bulk-create external Mail Contacts from a pasted list |
+| `Modules/Add-BulkGuestUser.ps1` | Bulk-send B2B guest invitations (auto-detects tenant redirect URL) |
 
 ## Requirements
 
