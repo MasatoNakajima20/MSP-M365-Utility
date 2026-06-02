@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.4.0-beta'
+$script:Version    = '0.4.1-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -257,7 +257,7 @@ function Show-AboutDialog {
 # ----- form -----
 $form               = New-Object System.Windows.Forms.Form
 $form.Text          = "MSP M365 Utility  -  $script:Version"
-$form.Size          = New-Object System.Drawing.Size(800, 620)
+$form.Size          = New-Object System.Drawing.Size(920, 620)
 $form.AutoScaleMode = 'Dpi'
 $form.StartPosition = 'CenterScreen'
 $form.BackColor     = [System.Drawing.Color]::White
@@ -267,7 +267,7 @@ $form.Font          = New-Object System.Drawing.Font('Segoe UI', 9)
 
 # ----- header -----
 $header           = New-Object System.Windows.Forms.Panel
-$header.Size      = New-Object System.Drawing.Size(800, 72)
+$header.Size      = New-Object System.Drawing.Size(920, 72)
 $header.Location  = New-Object System.Drawing.Point(0, 0)
 $header.BackColor = $BrandBlue
 $form.Controls.Add($header)
@@ -293,7 +293,7 @@ $header.Controls.Add($subLbl)
 # ----- module list -----
 $list                 = New-Object System.Windows.Forms.FlowLayoutPanel
 $list.Location        = New-Object System.Drawing.Point(15, 85)
-$list.Size            = New-Object System.Drawing.Size(760, 430)
+$list.Size            = New-Object System.Drawing.Size(885, 430)
 $list.FlowDirection   = 'TopDown'
 $list.WrapContents    = $false
 $list.AutoScroll      = $true
@@ -305,7 +305,7 @@ $statusLbl = New-Object System.Windows.Forms.Label
 
 foreach ($mod in $script:Modules) {
     $card             = New-Object System.Windows.Forms.Panel
-    $card.Size        = New-Object System.Drawing.Size(735, 76)
+    $card.Size        = New-Object System.Drawing.Size(860, 76)
     $card.Margin      = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
     $card.BackColor   = $BrandBlueLight
     $card.BorderStyle = 'FixedSingle'
@@ -324,7 +324,7 @@ foreach ($mod in $script:Modules) {
     $modTitleLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
     $modTitleLbl.ForeColor= $BrandTextDark
     $modTitleLbl.Location = New-Object System.Drawing.Point(12, 22)
-    $modTitleLbl.Size     = New-Object System.Drawing.Size(540, 22)
+    $modTitleLbl.Size     = New-Object System.Drawing.Size(660, 22)
     $modTitleLbl.BackColor= [System.Drawing.Color]::Transparent
     $card.Controls.Add($modTitleLbl)
 
@@ -333,14 +333,14 @@ foreach ($mod in $script:Modules) {
     $descLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 9)
     $descLbl.ForeColor= $BrandTextDark
     $descLbl.Location = New-Object System.Drawing.Point(12, 46)
-    $descLbl.Size     = New-Object System.Drawing.Size(540, 24)
+    $descLbl.Size     = New-Object System.Drawing.Size(660, 24)
     $descLbl.BackColor= [System.Drawing.Color]::Transparent
     $card.Controls.Add($descLbl)
 
     $runBtn           = New-Object System.Windows.Forms.Button
     $runBtn.Text      = 'Run'
     $runBtn.Size      = New-Object System.Drawing.Size(140, 40)
-    $runBtn.Location  = New-Object System.Drawing.Point(575, 18)
+    $runBtn.Location  = New-Object System.Drawing.Point(700, 18)
     $runBtn.BackColor = $BrandBlue
     $runBtn.ForeColor = [System.Drawing.Color]::White
     $runBtn.FlatStyle = 'Flat'
@@ -358,7 +358,7 @@ foreach ($mod in $script:Modules) {
 # ----- footer -----
 $statusLbl.Text      = 'Ready.'
 $statusLbl.Location  = New-Object System.Drawing.Point(18, 538)
-$statusLbl.Size      = New-Object System.Drawing.Size(380, 22)
+$statusLbl.Size      = New-Object System.Drawing.Size(500, 22)
 $statusLbl.TextAlign = 'MiddleLeft'
 $statusLbl.ForeColor = $BrandTextMuted
 $statusLbl.Font      = New-Object System.Drawing.Font('Segoe UI', 9)
@@ -367,7 +367,7 @@ $form.Controls.Add($statusLbl)
 $aboutBtn           = New-Object System.Windows.Forms.Button
 $aboutBtn.Text      = 'About'
 $aboutBtn.Size      = New-Object System.Drawing.Size(90, 32)
-$aboutBtn.Location  = New-Object System.Drawing.Point(420, 533)
+$aboutBtn.Location  = New-Object System.Drawing.Point(540, 533)
 $aboutBtn.FlatStyle = 'Flat'
 $aboutBtn.BackColor = [System.Drawing.Color]::White
 $aboutBtn.ForeColor = $BrandTextDark
@@ -377,7 +377,7 @@ $form.Controls.Add($aboutBtn)
 $openBtn           = New-Object System.Windows.Forms.Button
 $openBtn.Text      = 'View Results'
 $openBtn.Size      = New-Object System.Drawing.Size(150, 32)
-$openBtn.Location  = New-Object System.Drawing.Point(520, 533)
+$openBtn.Location  = New-Object System.Drawing.Point(640, 533)
 $openBtn.FlatStyle = 'Flat'
 $openBtn.BackColor = [System.Drawing.Color]::White
 $openBtn.ForeColor = $BrandTextDark
@@ -387,7 +387,7 @@ $form.Controls.Add($openBtn)
 $closeBtn           = New-Object System.Windows.Forms.Button
 $closeBtn.Text      = 'Close'
 $closeBtn.Size      = New-Object System.Drawing.Size(90, 32)
-$closeBtn.Location  = New-Object System.Drawing.Point(680, 533)
+$closeBtn.Location  = New-Object System.Drawing.Point(800, 533)
 $closeBtn.FlatStyle = 'Flat'
 $closeBtn.BackColor = [System.Drawing.Color]::White
 $closeBtn.ForeColor = $BrandTextDark
