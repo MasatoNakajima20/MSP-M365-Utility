@@ -2,6 +2,16 @@
 
 PowerShell modules for Microsoft 365 tenant administration and reporting in an MSP context.
 
+## Quick Start (GUI Launcher)
+
+Run on any Windows machine — no clone needed:
+
+```powershell
+iex (irm "https://raw.githubusercontent.com/MasatoNakajima20/MSP-M365-Utility/main/Launch-MSPM365Utility.ps1")
+```
+
+The launcher fetches each module on demand and opens it in its own PowerShell window so interactive prompts (tenant code, distribution list, paste-lists) work normally. CSV output and downloaded modules land in `%TEMP%\MSPM365Utility\`.
+
 ## Modules
 
 | Script | Purpose |
