@@ -23,9 +23,10 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.2.1-beta'
+$script:Version    = '0.3.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
-$script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'
+$script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
+$script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
 
 # Module catalog. When a new module is added to /Modules, add it here too.
 $script:Modules = @(
@@ -46,6 +47,12 @@ $script:Modules = @(
         Title       = 'Tenant Group Membership'
         Category    = 'Reporting'
         Description = 'Export all groups (DL, mail-enabled security, M365, security) and members to CSV.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Get-TenantMFAStatus.ps1'
+        Title       = 'Tenant MFA Status'
+        Category    = 'Reporting'
+        Description = 'Licensed users (guests excluded) with MFA status, default method, and Authenticator/SMS/OTP flags.'
     }
     [PSCustomObject]@{
         File        = 'Modules/Add-DistroMember.ps1'
@@ -104,7 +111,7 @@ function Invoke-Module {
             '-ExecutionPolicy', 'Bypass',
             '-File', $localPath
         ) | Out-Null
-        $StatusLabel.Text = "Launched: $($Module.Title)  (output lands in $script:WorkDir)"
+        $StatusLabel.Text = "Launched: $($Module.Title)  (results in $script:ResultsDir)"
     } catch {
         [System.Windows.Forms.MessageBox]::Show(
             "Could not launch $psExe.`n`n$($_.Exception.Message)",
@@ -118,6 +125,23 @@ function Invoke-Module {
 function Open-WorkDir {
     Ensure-WorkDir
     Start-Process explorer.exe $script:WorkDir | Out-Null
+}
+
+function Open-ResultsDir {
+    if (-not (Test-Path $script:ResultsDir)) {
+        try {
+            New-Item -ItemType Directory -Path $script:ResultsDir -Force -ErrorAction Stop | Out-Null
+        }
+        catch {
+            [System.Windows.Forms.MessageBox]::Show(
+                "Could not create '$script:ResultsDir'.`n`n$($_.Exception.Message)`n`nRun a reporting module first, or create the folder manually.",
+                'Results Folder',
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null
+            return
+        }
+    }
+    Start-Process explorer.exe $script:ResultsDir | Out-Null
 }
 
 function Show-AboutDialog {
@@ -339,13 +363,13 @@ $aboutBtn.Add_Click({ Show-AboutDialog })
 $form.Controls.Add($aboutBtn)
 
 $openBtn           = New-Object System.Windows.Forms.Button
-$openBtn.Text      = 'Output Folder'
+$openBtn.Text      = 'View Results'
 $openBtn.Size      = New-Object System.Drawing.Size(150, 32)
 $openBtn.Location  = New-Object System.Drawing.Point(520, 533)
 $openBtn.FlatStyle = 'Flat'
 $openBtn.BackColor = [System.Drawing.Color]::White
 $openBtn.ForeColor = $BrandTextDark
-$openBtn.Add_Click({ Open-WorkDir })
+$openBtn.Add_Click({ Open-ResultsDir })
 $form.Controls.Add($openBtn)
 
 $closeBtn           = New-Object System.Windows.Forms.Button

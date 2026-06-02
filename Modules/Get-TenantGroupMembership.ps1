@@ -58,10 +58,20 @@ do {
     }
 } while ($TenantCode -notmatch '^[A-Z]{3}$')
 
-# Derive output file name from tenant code + timestamp
+# Output path (C:\MSP-M365-Utility\)
+$OutputRoot = 'C:\MSP-M365-Utility'
+if (-not (Test-Path $OutputRoot)) {
+    try {
+        New-Item -ItemType Directory -Path $OutputRoot -Force -ErrorAction Stop | Out-Null
+    }
+    catch {
+        Write-Host "  [ERROR] Could not create output folder '$OutputRoot': $_" -ForegroundColor Red
+        exit 1
+    }
+}
 $Timestamp  = Get-Date -Format "yyyyMMdd_HHmmss"
 $OutputFile = "GroupMembership_${TenantCode}_${Timestamp}.csv"
-$OutputPath = Join-Path $PSScriptRoot $OutputFile
+$OutputPath = Join-Path $OutputRoot $OutputFile
 
 Write-Host ""
 Write-Host "  Tenant Code : $TenantCode" -ForegroundColor Green

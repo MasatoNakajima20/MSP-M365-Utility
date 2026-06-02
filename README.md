@@ -10,7 +10,12 @@ Run on any Windows machine — no clone needed:
 iex (irm "https://raw.githubusercontent.com/MasatoNakajima20/MSP-M365-Utility/main/Launch-MSPM365Utility.ps1")
 ```
 
-The launcher fetches each module on demand and opens it in its own PowerShell window so interactive prompts (tenant code, distribution list, paste-lists) work normally. CSV output and downloaded modules land in `%TEMP%\MSPM365Utility\`.
+The launcher fetches each module on demand and opens it in its own PowerShell window so interactive prompts (tenant code, distribution list, paste-lists) work normally.
+
+- **Module cache:** `%TEMP%\MSPM365Utility\` (downloaded `.ps1` files)
+- **Report output:** `C:\MSP-M365-Utility\` (all CSV results)
+
+Use the **View Results** button in the launcher to jump straight to the report folder.
 
 ## Modules
 
@@ -19,6 +24,7 @@ The launcher fetches each module on demand and opens it in its own PowerShell wi
 | `Modules/Get-TenantUserDetails.ps1` | Pull user details for a tenant |
 | `Modules/Get-TenantMailboxes.ps1` | Enumerate mailboxes in a tenant |
 | `Modules/Get-TenantGroupMembership.ps1` | Report group membership across a tenant |
+| `Modules/Get-TenantMFAStatus.ps1` | MFA status and authentication methods for licensed users (guests excluded) |
 | `Modules/Add-DistroMember.ps1` | Add a member to a distribution group |
 | `Modules/Remove-DistroMember.ps1` | Remove a member from a distribution group |
 
