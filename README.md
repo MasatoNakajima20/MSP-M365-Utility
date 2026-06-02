@@ -38,6 +38,8 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Remove-DistroMember.ps1` | Remove a member from a distribution group |
 | `Add-BulkContact.ps1` | Bulk-create external Mail Contacts from a pasted list |
 | `Add-BulkGuestUser.ps1` | Bulk-send B2B guest invitations (auto-detects tenant redirect URL) |
+| `Add-CalendarPermission.ps1` | Grant Reviewer / Author / Editor access on a mailbox's calendar (per-user role) |
+| `Remove-CalendarPermission.ps1` | Remove user(s) calendar access on a target mailbox |
 
 ## Requirements
 

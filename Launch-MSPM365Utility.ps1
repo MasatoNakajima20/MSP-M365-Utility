@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.4.2-beta'
+$script:Version    = '0.5.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -77,6 +77,18 @@ $script:Modules = @(
         Title       = 'Bulk Guest User Invite'
         Category    = 'Administration'
         Description = 'Bulk send B2B guest invitations. Auto-detects tenant redirect URL. Prompts per duplicate.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Add-CalendarPermission.ps1'
+        Title       = 'Add Calendar Permission'
+        Category    = 'Administration'
+        Description = 'Grant Reviewer / Author / Editor access to a mailbox calendar. Role pickable per user.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Remove-CalendarPermission.ps1'
+        Title       = 'Remove Calendar Permission'
+        Category    = 'Administration'
+        Description = 'Remove user(s) calendar access on a target mailbox. One confirmation, then straight removal.'
     }
 )
 
