@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.2.0-beta'
+$script:Version    = '0.2.1-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'
 
@@ -120,10 +120,109 @@ function Open-WorkDir {
     Start-Process explorer.exe $script:WorkDir | Out-Null
 }
 
+function Show-AboutDialog {
+    $about               = New-Object System.Windows.Forms.Form
+    $about.Text          = 'About MSP M365 Utility'
+    $about.Size          = New-Object System.Drawing.Size(460, 320)
+    $about.StartPosition = 'CenterParent'
+    $about.FormBorderStyle = 'FixedDialog'
+    $about.MinimizeBox   = $false
+    $about.MaximizeBox   = $false
+    $about.BackColor     = [System.Drawing.Color]::White
+    $about.Font          = New-Object System.Drawing.Font('Segoe UI', 9)
+
+    $hdr           = New-Object System.Windows.Forms.Panel
+    $hdr.Size      = New-Object System.Drawing.Size(460, 60)
+    $hdr.Location  = New-Object System.Drawing.Point(0, 0)
+    $hdr.BackColor = $BrandBlue
+    $about.Controls.Add($hdr)
+
+    $hdrTitle           = New-Object System.Windows.Forms.Label
+    $hdrTitle.Text      = 'MSP M365 Utility'
+    $hdrTitle.Font      = New-Object System.Drawing.Font('Segoe UI', 14, [System.Drawing.FontStyle]::Bold)
+    $hdrTitle.ForeColor = [System.Drawing.Color]::White
+    $hdrTitle.Location  = New-Object System.Drawing.Point(18, 8)
+    $hdrTitle.Size      = New-Object System.Drawing.Size(420, 26)
+    $hdrTitle.BackColor = [System.Drawing.Color]::Transparent
+    $hdr.Controls.Add($hdrTitle)
+
+    $hdrVer           = New-Object System.Windows.Forms.Label
+    $hdrVer.Text      = "Version $script:Version"
+    $hdrVer.Font      = New-Object System.Drawing.Font('Segoe UI', 9)
+    $hdrVer.ForeColor = [System.Drawing.Color]::White
+    $hdrVer.Location  = New-Object System.Drawing.Point(20, 36)
+    $hdrVer.Size      = New-Object System.Drawing.Size(420, 18)
+    $hdrVer.BackColor = [System.Drawing.Color]::Transparent
+    $hdr.Controls.Add($hdrVer)
+
+    $descLbl          = New-Object System.Windows.Forms.Label
+    $descLbl.Text     = "GUI launcher for the MSP M365 Utility module set. Fetches each module from GitHub on demand and runs it in its own PowerShell window."
+    $descLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 9)
+    $descLbl.ForeColor= $BrandTextDark
+    $descLbl.Location = New-Object System.Drawing.Point(20, 76)
+    $descLbl.Size     = New-Object System.Drawing.Size(415, 44)
+    $about.Controls.Add($descLbl)
+
+    $repoCaption          = New-Object System.Windows.Forms.Label
+    $repoCaption.Text     = 'Repository:'
+    $repoCaption.Font     = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+    $repoCaption.ForeColor= $BrandTextDark
+    $repoCaption.Location = New-Object System.Drawing.Point(20, 130)
+    $repoCaption.Size     = New-Object System.Drawing.Size(100, 18)
+    $about.Controls.Add($repoCaption)
+
+    $repoUrl  = "https://github.com/$script:RepoOwner/$script:RepoName"
+    $repoLink           = New-Object System.Windows.Forms.LinkLabel
+    $repoLink.Text      = $repoUrl
+    $repoLink.Font      = New-Object System.Drawing.Font('Segoe UI', 9)
+    $repoLink.LinkColor = $BrandBlue
+    $repoLink.ActiveLinkColor = $BrandBlueDark
+    $repoLink.Location  = New-Object System.Drawing.Point(20, 150)
+    $repoLink.Size      = New-Object System.Drawing.Size(415, 18)
+    $repoLink.Add_LinkClicked({ Start-Process $repoUrl | Out-Null }.GetNewClosure())
+    $about.Controls.Add($repoLink)
+
+    $relCaption          = New-Object System.Windows.Forms.Label
+    $relCaption.Text     = 'Releases:'
+    $relCaption.Font     = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+    $relCaption.ForeColor= $BrandTextDark
+    $relCaption.Location = New-Object System.Drawing.Point(20, 175)
+    $relCaption.Size     = New-Object System.Drawing.Size(100, 18)
+    $about.Controls.Add($relCaption)
+
+    $relUrl   = "https://github.com/$script:RepoOwner/$script:RepoName/releases"
+    $relLink           = New-Object System.Windows.Forms.LinkLabel
+    $relLink.Text      = $relUrl
+    $relLink.Font      = New-Object System.Drawing.Font('Segoe UI', 9)
+    $relLink.LinkColor = $BrandBlue
+    $relLink.ActiveLinkColor = $BrandBlueDark
+    $relLink.Location  = New-Object System.Drawing.Point(20, 195)
+    $relLink.Size      = New-Object System.Drawing.Size(415, 18)
+    $relLink.Add_LinkClicked({ Start-Process $relUrl | Out-Null }.GetNewClosure())
+    $about.Controls.Add($relLink)
+
+    $okBtn           = New-Object System.Windows.Forms.Button
+    $okBtn.Text      = 'OK'
+    $okBtn.Size      = New-Object System.Drawing.Size(90, 30)
+    $okBtn.Location  = New-Object System.Drawing.Point(335, 235)
+    $okBtn.BackColor = $BrandBlue
+    $okBtn.ForeColor = [System.Drawing.Color]::White
+    $okBtn.FlatStyle = 'Flat'
+    $okBtn.FlatAppearance.BorderSize = 0
+    $okBtn.Font      = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    $okBtn.Add_Click({ $about.Close() })
+    $about.AcceptButton = $okBtn
+    $about.Controls.Add($okBtn)
+
+    [void]$about.ShowDialog()
+    $about.Dispose()
+}
+
 # ----- form -----
 $form               = New-Object System.Windows.Forms.Form
 $form.Text          = "MSP M365 Utility  -  $script:Version"
-$form.Size          = New-Object System.Drawing.Size(800, 600)
+$form.Size          = New-Object System.Drawing.Size(800, 620)
+$form.AutoScaleMode = 'Dpi'
 $form.StartPosition = 'CenterScreen'
 $form.BackColor     = [System.Drawing.Color]::White
 $form.FormBorderStyle = 'FixedSingle'
@@ -222,16 +321,27 @@ foreach ($mod in $script:Modules) {
 
 # ----- footer -----
 $statusLbl.Text      = 'Ready.'
-$statusLbl.Location  = New-Object System.Drawing.Point(15, 525)
-$statusLbl.Size      = New-Object System.Drawing.Size(540, 18)
+$statusLbl.Location  = New-Object System.Drawing.Point(18, 538)
+$statusLbl.Size      = New-Object System.Drawing.Size(380, 22)
+$statusLbl.TextAlign = 'MiddleLeft'
 $statusLbl.ForeColor = $BrandTextMuted
-$statusLbl.Font      = New-Object System.Drawing.Font('Segoe UI', 8)
+$statusLbl.Font      = New-Object System.Drawing.Font('Segoe UI', 9)
 $form.Controls.Add($statusLbl)
 
+$aboutBtn           = New-Object System.Windows.Forms.Button
+$aboutBtn.Text      = 'About'
+$aboutBtn.Size      = New-Object System.Drawing.Size(90, 32)
+$aboutBtn.Location  = New-Object System.Drawing.Point(420, 533)
+$aboutBtn.FlatStyle = 'Flat'
+$aboutBtn.BackColor = [System.Drawing.Color]::White
+$aboutBtn.ForeColor = $BrandTextDark
+$aboutBtn.Add_Click({ Show-AboutDialog })
+$form.Controls.Add($aboutBtn)
+
 $openBtn           = New-Object System.Windows.Forms.Button
-$openBtn.Text      = 'Open Output Folder'
-$openBtn.Size      = New-Object System.Drawing.Size(150, 28)
-$openBtn.Location  = New-Object System.Drawing.Point(465, 520)
+$openBtn.Text      = 'Output Folder'
+$openBtn.Size      = New-Object System.Drawing.Size(150, 32)
+$openBtn.Location  = New-Object System.Drawing.Point(520, 533)
 $openBtn.FlatStyle = 'Flat'
 $openBtn.BackColor = [System.Drawing.Color]::White
 $openBtn.ForeColor = $BrandTextDark
@@ -240,21 +350,13 @@ $form.Controls.Add($openBtn)
 
 $closeBtn           = New-Object System.Windows.Forms.Button
 $closeBtn.Text      = 'Close'
-$closeBtn.Size      = New-Object System.Drawing.Size(140, 28)
-$closeBtn.Location  = New-Object System.Drawing.Point(625, 520)
+$closeBtn.Size      = New-Object System.Drawing.Size(90, 32)
+$closeBtn.Location  = New-Object System.Drawing.Point(680, 533)
 $closeBtn.FlatStyle = 'Flat'
 $closeBtn.BackColor = [System.Drawing.Color]::White
 $closeBtn.ForeColor = $BrandTextDark
 $closeBtn.Add_Click({ $form.Close() })
 $form.Controls.Add($closeBtn)
-
-$repoLbl           = New-Object System.Windows.Forms.Label
-$repoLbl.Text      = "github.com/$script:RepoOwner/$script:RepoName"
-$repoLbl.Location  = New-Object System.Drawing.Point(15, 547)
-$repoLbl.Size      = New-Object System.Drawing.Size(540, 16)
-$repoLbl.ForeColor = $BrandTextMuted
-$repoLbl.Font      = New-Object System.Drawing.Font('Segoe UI', 8)
-$form.Controls.Add($repoLbl)
 
 [void]$form.ShowDialog()
 $form.Dispose()
