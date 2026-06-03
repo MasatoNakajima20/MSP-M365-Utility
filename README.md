@@ -43,6 +43,17 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Add-MailboxAccess.ps1` | Bulk grant FullAccess + SendAs (creates target as shared mailbox if missing) |
 | `Remove-MailboxAccess.ps1` | Bulk remove FullAccess + SendAs from a target mailbox |
 
+### Utility (`Modules/Utility/`)
+
+| Script | Purpose |
+| --- | --- |
+| `Install-ExchangeOnlineModule.ps1` | Install / update the ExchangeOnlineManagement PowerShell module |
+| `Install-MicrosoftGraphModule.ps1` | Install / update the 4 Microsoft.Graph submodules used by these scripts |
+| `Install-PowerShell7.ps1` | Install PowerShell 7 via winget |
+| `Install-All.ps1` | Run all three installers in sequence (idempotent) |
+
+The launcher landing page shows a green/red status pill for each prerequisite (Exchange Online, MS Graph, PowerShell 7) so you can see at a glance what's missing.
+
 ## Requirements
 
 - PowerShell 7+

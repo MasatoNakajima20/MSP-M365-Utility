@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.6.0-beta'
+$script:Version    = '0.7.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -102,6 +102,30 @@ $script:Modules = @(
         Category    = 'Administration'
         Description = 'Bulk remove FullAccess + SendAs from a target mailbox.'
     }
+    [PSCustomObject]@{
+        File        = 'Modules/Utility/Install-ExchangeOnlineModule.ps1'
+        Title       = 'Install Exchange Online Module'
+        Category    = 'Utility'
+        Description = 'Install / update the ExchangeOnlineManagement PowerShell module (CurrentUser scope).'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Utility/Install-MicrosoftGraphModule.ps1'
+        Title       = 'Install Microsoft Graph Modules'
+        Category    = 'Utility'
+        Description = 'Install / update the 4 Microsoft.Graph submodules used by these scripts (Users, Groups, Reports, Identity.SignIns).'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Utility/Install-PowerShell7.ps1'
+        Title       = 'Install PowerShell 7'
+        Category    = 'Utility'
+        Description = 'Install PowerShell 7 via winget (Microsoft.PowerShell package).'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Utility/Install-All.ps1'
+        Title       = 'Install All Prerequisites'
+        Category    = 'Utility'
+        Description = 'Run all three installers in sequence. Idempotent - already-installed items are skipped.'
+    }
 )
 
 # Brand palette
@@ -161,6 +185,38 @@ function Invoke-Module {
 function Open-WorkDir {
     Ensure-WorkDir
     Start-Process explorer.exe $script:WorkDir | Out-Null
+}
+
+function Get-RequiredPrereqStatus {
+    # Returns an ordered list of @{Name, Ok, Detail} for the landing-page indicator.
+    $result = New-Object System.Collections.Generic.List[PSCustomObject]
+
+    # Exchange Online
+    $exo = Get-Module -ListAvailable -Name 'ExchangeOnlineManagement' -ErrorAction SilentlyContinue
+    $result.Add([PSCustomObject]@{
+        Name   = 'Exchange Online'
+        Ok     = [bool]$exo
+        Detail = if ($exo) { 'v' + (($exo | Sort-Object Version -Descending | Select-Object -First 1).Version) } else { 'Missing' }
+    })
+
+    # MS Graph - require all 4 submodules we actually use
+    $graphMods = @('Microsoft.Graph.Users','Microsoft.Graph.Groups','Microsoft.Graph.Reports','Microsoft.Graph.Identity.SignIns')
+    $missingGraph = @($graphMods | Where-Object { -not (Get-Module -ListAvailable -Name $_ -ErrorAction SilentlyContinue) })
+    $result.Add([PSCustomObject]@{
+        Name   = 'MS Graph'
+        Ok     = ($missingGraph.Count -eq 0)
+        Detail = if ($missingGraph.Count -eq 0) { 'All 4 submodules present' } else { "Missing: $($missingGraph.Count)/$($graphMods.Count)" }
+    })
+
+    # PowerShell 7
+    $pwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+    $result.Add([PSCustomObject]@{
+        Name   = 'PowerShell 7'
+        Ok     = [bool]$pwsh
+        Detail = if ($pwsh) { 'pwsh found' } else { 'Missing' }
+    })
+
+    return $result
 }
 
 function Open-ResultsDir {
@@ -281,7 +337,7 @@ function Show-AboutDialog {
 # ----- form -----
 $form               = New-Object System.Windows.Forms.Form
 $form.Text          = "MSP M365 Utility  -  $script:Version"
-$form.Size          = New-Object System.Drawing.Size(920, 620)
+$form.Size          = New-Object System.Drawing.Size(1100, 620)
 $form.AutoScaleMode = 'Dpi'
 $form.StartPosition = 'CenterScreen'
 $form.BackColor     = [System.Drawing.Color]::White
@@ -291,7 +347,7 @@ $form.Font          = New-Object System.Drawing.Font('Segoe UI', 9)
 
 # ----- header -----
 $header           = New-Object System.Windows.Forms.Panel
-$header.Size      = New-Object System.Drawing.Size(920, 72)
+$header.Size      = New-Object System.Drawing.Size(1100, 72)
 $header.Location  = New-Object System.Drawing.Point(0, 0)
 $header.BackColor = $BrandBlue
 $form.Controls.Add($header)
@@ -320,14 +376,14 @@ $statusLbl = New-Object System.Windows.Forms.Label
 # ----- category-selection panel (shown first) -----
 $categoryPanel          = New-Object System.Windows.Forms.Panel
 $categoryPanel.Location = New-Object System.Drawing.Point(15, 85)
-$categoryPanel.Size     = New-Object System.Drawing.Size(885, 430)
+$categoryPanel.Size     = New-Object System.Drawing.Size(1065, 430)
 $categoryPanel.BackColor= [System.Drawing.Color]::White
 $form.Controls.Add($categoryPanel)
 
 # ----- modules panel (hidden until a category is picked) -----
 $modulesPanel           = New-Object System.Windows.Forms.Panel
 $modulesPanel.Location  = New-Object System.Drawing.Point(15, 85)
-$modulesPanel.Size      = New-Object System.Drawing.Size(885, 430)
+$modulesPanel.Size      = New-Object System.Drawing.Size(1065, 430)
 $modulesPanel.BackColor = [System.Drawing.Color]::White
 $modulesPanel.Visible   = $false
 $form.Controls.Add($modulesPanel)
@@ -353,7 +409,7 @@ $modulesPanel.Controls.Add($breadcrumbLbl)
 
 $list                 = New-Object System.Windows.Forms.FlowLayoutPanel
 $list.Location        = New-Object System.Drawing.Point(0, 40)
-$list.Size            = New-Object System.Drawing.Size(885, 388)
+$list.Size            = New-Object System.Drawing.Size(1065, 388)
 $list.FlowDirection   = 'TopDown'
 $list.WrapContents    = $false
 $list.AutoScroll      = $true
@@ -368,7 +424,7 @@ function New-ModuleCard {
     )
 
     $card             = New-Object System.Windows.Forms.Panel
-    $card.Size        = New-Object System.Drawing.Size(860, 76)
+    $card.Size        = New-Object System.Drawing.Size(1040, 76)
     $card.Margin      = New-Object System.Windows.Forms.Padding(0, 0, 0, 8)
     $card.BackColor   = $BrandBlueLight
     $card.BorderStyle = 'FixedSingle'
@@ -387,7 +443,7 @@ function New-ModuleCard {
     $modTitleLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
     $modTitleLbl.ForeColor= $BrandTextDark
     $modTitleLbl.Location = New-Object System.Drawing.Point(12, 22)
-    $modTitleLbl.Size     = New-Object System.Drawing.Size(660, 22)
+    $modTitleLbl.Size     = New-Object System.Drawing.Size(840, 22)
     $modTitleLbl.BackColor= [System.Drawing.Color]::Transparent
     $card.Controls.Add($modTitleLbl)
 
@@ -396,14 +452,14 @@ function New-ModuleCard {
     $descLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 9)
     $descLbl.ForeColor= $BrandTextDark
     $descLbl.Location = New-Object System.Drawing.Point(12, 46)
-    $descLbl.Size     = New-Object System.Drawing.Size(660, 24)
+    $descLbl.Size     = New-Object System.Drawing.Size(840, 24)
     $descLbl.BackColor= [System.Drawing.Color]::Transparent
     $card.Controls.Add($descLbl)
 
     $runBtn           = New-Object System.Windows.Forms.Button
     $runBtn.Text      = 'Run'
     $runBtn.Size      = New-Object System.Drawing.Size(140, 40)
-    $runBtn.Location  = New-Object System.Drawing.Point(700, 18)
+    $runBtn.Location  = New-Object System.Drawing.Point(880, 18)
     $runBtn.BackColor = $BrandBlue
     $runBtn.ForeColor = [System.Drawing.Color]::White
     $runBtn.FlatStyle = 'Flat'
@@ -454,18 +510,18 @@ function New-CategoryTile {
     )
 
     $tile             = New-Object System.Windows.Forms.Panel
-    $tile.Size        = New-Object System.Drawing.Size(420, 360)
+    $tile.Size        = New-Object System.Drawing.Size(330, 340)
     $tile.Location    = New-Object System.Drawing.Point($X, $Y)
     $tile.BackColor   = $BrandBlue
     $tile.Cursor      = [System.Windows.Forms.Cursors]::Hand
 
     $headLbl          = New-Object System.Windows.Forms.Label
     $headLbl.Text     = $Category.ToUpper()
-    $headLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 22, [System.Drawing.FontStyle]::Bold)
+    $headLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 19, [System.Drawing.FontStyle]::Bold)
     $headLbl.ForeColor= [System.Drawing.Color]::White
     $headLbl.BackColor= [System.Drawing.Color]::Transparent
-    $headLbl.Location = New-Object System.Drawing.Point(0, 80)
-    $headLbl.Size     = New-Object System.Drawing.Size(420, 44)
+    $headLbl.Location = New-Object System.Drawing.Point(0, 70)
+    $headLbl.Size     = New-Object System.Drawing.Size(330, 40)
     $headLbl.TextAlign= 'MiddleCenter'
     $headLbl.Cursor   = [System.Windows.Forms.Cursors]::Hand
     $tile.Controls.Add($headLbl)
@@ -475,8 +531,8 @@ function New-CategoryTile {
     $countLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 11)
     $countLbl.ForeColor= [System.Drawing.Color]::White
     $countLbl.BackColor= [System.Drawing.Color]::Transparent
-    $countLbl.Location = New-Object System.Drawing.Point(0, 130)
-    $countLbl.Size     = New-Object System.Drawing.Size(420, 22)
+    $countLbl.Location = New-Object System.Drawing.Point(0, 115)
+    $countLbl.Size     = New-Object System.Drawing.Size(330, 22)
     $countLbl.TextAlign= 'MiddleCenter'
     $countLbl.Cursor   = [System.Windows.Forms.Cursors]::Hand
     $tile.Controls.Add($countLbl)
@@ -486,8 +542,8 @@ function New-CategoryTile {
     $taglineLbl.Font     = New-Object System.Drawing.Font('Segoe UI', 10)
     $taglineLbl.ForeColor= [System.Drawing.Color]::White
     $taglineLbl.BackColor= [System.Drawing.Color]::Transparent
-    $taglineLbl.Location = New-Object System.Drawing.Point(30, 175)
-    $taglineLbl.Size     = New-Object System.Drawing.Size(360, 70)
+    $taglineLbl.Location = New-Object System.Drawing.Point(20, 160)
+    $taglineLbl.Size     = New-Object System.Drawing.Size(290, 90)
     $taglineLbl.TextAlign= 'MiddleCenter'
     $taglineLbl.Cursor   = [System.Windows.Forms.Cursors]::Hand
     $tile.Controls.Add($taglineLbl)
@@ -498,7 +554,7 @@ function New-CategoryTile {
     $cueLbl.ForeColor= [System.Drawing.Color]::White
     $cueLbl.BackColor= [System.Drawing.Color]::Transparent
     $cueLbl.Location = New-Object System.Drawing.Point(0, 280)
-    $cueLbl.Size     = New-Object System.Drawing.Size(420, 22)
+    $cueLbl.Size     = New-Object System.Drawing.Size(330, 22)
     $cueLbl.TextAlign= 'MiddleCenter'
     $cueLbl.Cursor   = [System.Windows.Forms.Cursors]::Hand
     $tile.Controls.Add($cueLbl)
@@ -513,28 +569,107 @@ function New-CategoryTile {
     return $tile
 }
 
+# ----- prerequisite status banner (landing page) -----
+$BrandGreen = [System.Drawing.ColorTranslator]::FromHtml('#28A745')
+$BrandRed   = [System.Drawing.ColorTranslator]::FromHtml('#C0392B')
+
+function New-StatusPill {
+    param ([string]$Name, [bool]$Ok, [string]$Detail, [int]$X, [int]$Y)
+
+    $pill              = New-Object System.Windows.Forms.Panel
+    $pill.Size         = New-Object System.Drawing.Size(330, 36)
+    $pill.Location     = New-Object System.Drawing.Point($X, $Y)
+    $pill.BackColor    = if ($Ok) { $BrandGreen } else { $BrandRed }
+
+    $tag               = New-Object System.Windows.Forms.Label
+    $tag.Text          = if ($Ok) { 'OK' } else { 'MISSING' }
+    $tag.Font          = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+    $tag.ForeColor     = [System.Drawing.Color]::White
+    $tag.BackColor     = [System.Drawing.Color]::Transparent
+    $tag.Location      = New-Object System.Drawing.Point(10, 8)
+    $tag.Size          = New-Object System.Drawing.Size(70, 20)
+    $tag.TextAlign     = 'MiddleLeft'
+    $pill.Controls.Add($tag)
+
+    $lbl               = New-Object System.Windows.Forms.Label
+    $lbl.Text          = $Name
+    $lbl.Font          = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+    $lbl.ForeColor     = [System.Drawing.Color]::White
+    $lbl.BackColor     = [System.Drawing.Color]::Transparent
+    $lbl.Location      = New-Object System.Drawing.Point(80, 4)
+    $lbl.Size          = New-Object System.Drawing.Size(180, 18)
+    $lbl.TextAlign     = 'MiddleLeft'
+    $pill.Controls.Add($lbl)
+
+    $det               = New-Object System.Windows.Forms.Label
+    $det.Text          = $Detail
+    $det.Font          = New-Object System.Drawing.Font('Segoe UI', 8)
+    $det.ForeColor     = [System.Drawing.Color]::White
+    $det.BackColor     = [System.Drawing.Color]::Transparent
+    $det.Location      = New-Object System.Drawing.Point(80, 19)
+    $det.Size          = New-Object System.Drawing.Size(240, 14)
+    $det.TextAlign     = 'MiddleLeft'
+    $pill.Controls.Add($det)
+
+    return $pill
+}
+
+$prereqs = Get-RequiredPrereqStatus
+# 3 pills, 330 wide each, 15px gap, centred in the 1065-wide category panel
+# Total width: 3*330 + 2*15 = 1020; left margin = (1065-1020)/2 = 22 (round to 22)
+$pillY = 10
+$pillX = 22
+foreach ($p in $prereqs) {
+    $pill = New-StatusPill -Name $p.Name -Ok $p.Ok -Detail $p.Detail -X $pillX -Y $pillY
+    $categoryPanel.Controls.Add($pill)
+    $pillX += 345
+}
+
+$missingCount = @($prereqs | Where-Object { -not $_.Ok }).Count
+if ($missingCount -gt 0) {
+    $hintLbl           = New-Object System.Windows.Forms.Label
+    $hintLbl.Text      = "$missingCount prerequisite(s) missing. Open the Utility tile to install."
+    $hintLbl.Font      = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Italic)
+    $hintLbl.ForeColor = $BrandRed
+    $hintLbl.Location  = New-Object System.Drawing.Point(22, 52)
+    $hintLbl.Size      = New-Object System.Drawing.Size(1020, 18)
+    $hintLbl.TextAlign = 'MiddleCenter'
+    $categoryPanel.Controls.Add($hintLbl)
+}
+
+# ----- category tiles (3 across) -----
 $reportingCount = @($script:Modules | Where-Object { $_.Category -eq 'Reporting' }).Count
 $adminCount     = @($script:Modules | Where-Object { $_.Category -eq 'Administration' }).Count
+$utilityCount   = @($script:Modules | Where-Object { $_.Category -eq 'Utility' }).Count
 
+# 3 tiles, 330 wide, 15px gap, ~22 left margin (same as pills row)
+$tileY = 78
 $reportingTile = New-CategoryTile `
     -Category    'Reporting' `
     -Tagline     "Tenant inventory reports: mailboxes, users, group membership, and MFA / authentication methods." `
     -ModuleCount $reportingCount `
-    -X 10 -Y 35
+    -X 22 -Y $tileY
 
 $adminTile = New-CategoryTile `
     -Category    'Administration' `
-    -Tagline     "Make changes in the tenant: distribution-list membership, bulk mail contacts, bulk guest invitations." `
+    -Tagline     "Make changes in the tenant: distribution lists, contacts, guests, calendar and mailbox access." `
     -ModuleCount $adminCount `
-    -X 455 -Y 35
+    -X 367 -Y $tileY
+
+$utilityTile = New-CategoryTile `
+    -Category    'Utility' `
+    -Tagline     "Install prerequisites: ExchangeOnlineManagement, Microsoft Graph modules, PowerShell 7." `
+    -ModuleCount $utilityCount `
+    -X 712 -Y $tileY
 
 $categoryPanel.Controls.Add($reportingTile)
 $categoryPanel.Controls.Add($adminTile)
+$categoryPanel.Controls.Add($utilityTile)
 
 # ----- footer -----
 $statusLbl.Text      = 'Ready.'
 $statusLbl.Location  = New-Object System.Drawing.Point(18, 538)
-$statusLbl.Size      = New-Object System.Drawing.Size(500, 22)
+$statusLbl.Size      = New-Object System.Drawing.Size(680, 22)
 $statusLbl.TextAlign = 'MiddleLeft'
 $statusLbl.ForeColor = $BrandTextMuted
 $statusLbl.Font      = New-Object System.Drawing.Font('Segoe UI', 9)
@@ -543,7 +678,7 @@ $form.Controls.Add($statusLbl)
 $aboutBtn           = New-Object System.Windows.Forms.Button
 $aboutBtn.Text      = 'About'
 $aboutBtn.Size      = New-Object System.Drawing.Size(90, 32)
-$aboutBtn.Location  = New-Object System.Drawing.Point(540, 533)
+$aboutBtn.Location  = New-Object System.Drawing.Point(720, 533)
 $aboutBtn.FlatStyle = 'Flat'
 $aboutBtn.BackColor = [System.Drawing.Color]::White
 $aboutBtn.ForeColor = $BrandTextDark
@@ -553,7 +688,7 @@ $form.Controls.Add($aboutBtn)
 $openBtn           = New-Object System.Windows.Forms.Button
 $openBtn.Text      = 'View Results'
 $openBtn.Size      = New-Object System.Drawing.Size(150, 32)
-$openBtn.Location  = New-Object System.Drawing.Point(640, 533)
+$openBtn.Location  = New-Object System.Drawing.Point(820, 533)
 $openBtn.FlatStyle = 'Flat'
 $openBtn.BackColor = [System.Drawing.Color]::White
 $openBtn.ForeColor = $BrandTextDark
@@ -563,7 +698,7 @@ $form.Controls.Add($openBtn)
 $closeBtn           = New-Object System.Windows.Forms.Button
 $closeBtn.Text      = 'Close'
 $closeBtn.Size      = New-Object System.Drawing.Size(90, 32)
-$closeBtn.Location  = New-Object System.Drawing.Point(800, 533)
+$closeBtn.Location  = New-Object System.Drawing.Point(980, 533)
 $closeBtn.FlatStyle = 'Flat'
 $closeBtn.BackColor = [System.Drawing.Color]::White
 $closeBtn.ForeColor = $BrandTextDark
