@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.5.0-beta'
+$script:Version    = '0.6.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -89,6 +89,18 @@ $script:Modules = @(
         Title       = 'Remove Calendar Permission'
         Category    = 'Administration'
         Description = 'Remove user(s) calendar access on a target mailbox. One confirmation, then straight removal.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Add-MailboxAccess.ps1'
+        Title       = 'Add Mailbox Access (FullAccess + SendAs)'
+        Category    = 'Administration'
+        Description = 'Bulk grant FullAccess + SendAs. Creates target as a shared mailbox if it does not exist.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Remove-MailboxAccess.ps1'
+        Title       = 'Remove Mailbox Access (FullAccess + SendAs)'
+        Category    = 'Administration'
+        Description = 'Bulk remove FullAccess + SendAs from a target mailbox.'
     }
 )
 

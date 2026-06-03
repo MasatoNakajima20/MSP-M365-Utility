@@ -40,6 +40,8 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Add-BulkGuestUser.ps1` | Bulk-send B2B guest invitations (auto-detects tenant redirect URL) |
 | `Add-CalendarPermission.ps1` | Grant Reviewer / Author / Editor access on a mailbox's calendar (per-user role) |
 | `Remove-CalendarPermission.ps1` | Remove user(s) calendar access on a target mailbox |
+| `Add-MailboxAccess.ps1` | Bulk grant FullAccess + SendAs (creates target as shared mailbox if missing) |
+| `Remove-MailboxAccess.ps1` | Bulk remove FullAccess + SendAs from a target mailbox |
 
 ## Requirements
 
