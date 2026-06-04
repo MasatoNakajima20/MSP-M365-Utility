@@ -76,7 +76,11 @@ $ScriptStart = [System.Diagnostics.Stopwatch]::StartNew()
 # ----------------------------------------------------------
 Write-Host "  [1/4] Checking required modules..." -ForegroundColor Cyan
 
-$RequiredModules = @('ExchangeOnlineManagement', 'Microsoft.Graph.Users')
+# NOTE: Graph modules are listed first on purpose. Importing/connecting Graph
+# before ExchangeOnlineManagement makes the newer Microsoft.Identity.Client
+# (MSAL) assembly load first, avoiding the "Method not found: WithLogging"
+# conflict caused by EXO bundling an older MSAL.
+$RequiredModules = @('Microsoft.Graph.Users', 'ExchangeOnlineManagement')
 foreach ($Mod in $RequiredModules) {
     if (-not (Get-Module -ListAvailable -Name $Mod)) {
         Write-Host "  [!] Module '$Mod' not found. Installing..." -ForegroundColor Yellow
@@ -93,11 +97,12 @@ Write-Host ""
 Write-Host "  [2/4] Connecting to Microsoft 365 services..." -ForegroundColor Cyan
 
 try {
-    Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
-
+    # Connect Graph FIRST so the newer MSAL assembly loads before EXO's older one.
     Connect-MgGraph -Scopes "User.Read.All" -NoWelcome -ErrorAction Stop
     Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+
+    Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
 }
 catch {
     Write-Host "  [ERROR] Failed to connect: $_" -ForegroundColor Red

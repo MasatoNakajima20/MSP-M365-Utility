@@ -105,7 +105,9 @@ $RemovalCsv    = Join-Path $OutputRoot "UserAccessRemoval_${TenantCode}_${Timest
 # ----------------------------------------------------------
 Write-Host ""
 Write-Host "  [1/5] Checking required modules..." -ForegroundColor Cyan
-foreach ($Mod in @('ExchangeOnlineManagement','Microsoft.Graph.Users','Microsoft.Graph.Groups')) {
+# NOTE: Graph modules first on purpose - loading the newer MSAL before EXO's
+# older bundled copy avoids the "Method not found: WithLogging" conflict.
+foreach ($Mod in @('Microsoft.Graph.Users','Microsoft.Graph.Groups','ExchangeOnlineManagement')) {
     if (-not (Get-Module -ListAvailable -Name $Mod)) {
         Write-Host "  [!] Module '$Mod' not found. Installing..." -ForegroundColor Yellow
         Install-Module -Name $Mod -Scope CurrentUser -Force -AllowClobber
@@ -117,10 +119,11 @@ foreach ($Mod in @('ExchangeOnlineManagement','Microsoft.Graph.Users','Microsoft
 Write-Host ""
 Write-Host "  [2/5] Connecting..." -ForegroundColor Cyan
 try {
-    Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
+    # Connect Graph FIRST so the newer MSAL assembly loads before EXO's older one.
     Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.ReadWrite.All" -NoWelcome -ErrorAction Stop
     Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+    Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
 } catch {
     Write-Host "  [ERROR] Failed to connect: $_" -ForegroundColor Red
     Read-Host "`n  Press Enter to exit"; exit 1
