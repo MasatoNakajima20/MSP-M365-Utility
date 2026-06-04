@@ -161,16 +161,36 @@ try {
 Write-Host ""
 Write-Host "  [3/5] Discovering mailbox access..." -ForegroundColor Cyan
 
-# SendAs - single fast query
-$sendAsMap = @{}
+# SendAs - single fast query. Get-RecipientPermission returns the recipient
+# Name (not SMTP) in .Identity, so resolve each to its PrimarySmtpAddress.
+# Entries that don't resolve are orphaned/soft-deleted recipients (their live
+# ACE is already gone - they can't be removed and will clear when purged).
+$sendAsEntries = @()
 try {
     $sa = @(Get-RecipientPermission -Trustee $TargetUser -ResultSize Unlimited -ErrorAction Stop |
             Where-Object { $_.AccessRights -contains 'SendAs' })
     foreach ($r in $sa) {
-        $key = $r.Identity.ToString().ToLower()
-        $sendAsMap[$key] = $r
+        $rawId    = $r.Identity.ToString()
+        $smtp     = $null
+        $resolved = $false
+        try {
+            $rcpt = Get-Recipient -Identity $rawId -ErrorAction Stop
+            if ($rcpt.PrimarySmtpAddress) {
+                $smtp     = $rcpt.PrimarySmtpAddress.ToString()
+                $resolved = $true
+            }
+        } catch { }
+        $sendAsEntries += [PSCustomObject]@{
+            RawId    = $rawId
+            Smtp     = $smtp
+            Resolved = $resolved
+        }
     }
-    Write-Host "  [OK] SendAs entries : $($sendAsMap.Count)" -ForegroundColor Green
+    Write-Host "  [OK] SendAs entries : $($sendAsEntries.Count)" -ForegroundColor Green
+    $unresolvedSA = @($sendAsEntries | Where-Object { -not $_.Resolved }).Count
+    if ($unresolvedSA -gt 0) {
+        Write-Host "  [!]  $unresolvedSA SendAs entry(ies) point to deleted/orphaned recipients - cannot be removed." -ForegroundColor Yellow
+    }
 } catch {
     Write-Host "  [WARN] Could not query SendAs: $_" -ForegroundColor Yellow
 }
@@ -217,25 +237,38 @@ foreach ($mbx in $allMbx) {
 Write-Progress -Activity "Scanning mailboxes for FullAccess" -Completed
 Write-Host "  [OK] FullAccess entries: $($fullAccessMap.Count)" -ForegroundColor Green
 
-# Merge into one map keyed by mailbox SMTP
+# Merge into one map keyed by mailbox SMTP (or raw name for unresolved SendAs).
+# Each entry carries the exact identity to use per-right at removal time:
+#   FAIdentity = mailbox SMTP (for Remove-MailboxPermission)
+#   SAIdentity = original Get-RecipientPermission .Identity (for Remove-RecipientPermission)
 $mbxAccess = @{}
 foreach ($k in $fullAccessMap.Keys) {
+    $mbx = $fullAccessMap[$k]
+    $smtp = $mbx.PrimarySmtpAddress.ToString()
     $mbxAccess[$k] = [PSCustomObject]@{
-        Mailbox    = $k
+        DisplayKey = $smtp
         FullAccess = $true
         SendAs     = $false
+        Resolved   = $true
+        FAIdentity = $smtp
+        SAIdentity = $null
     }
 }
-foreach ($k in $sendAsMap.Keys) {
-    # SendAs Identity comes back as the recipient (mailbox/group SMTP usually) - normalise
-    $entryIdentity = $sendAsMap[$k].Identity.ToString().ToLower()
-    if ($mbxAccess.ContainsKey($entryIdentity)) {
-        $mbxAccess[$entryIdentity].SendAs = $true
+foreach ($e in $sendAsEntries) {
+    $key = if ($e.Resolved) { $e.Smtp.ToLower() } else { $e.RawId.ToLower() }
+    if ($mbxAccess.ContainsKey($key)) {
+        $mbxAccess[$key].SendAs     = $true
+        $mbxAccess[$key].SAIdentity = $e.RawId
+        if (-not $e.Resolved) { $mbxAccess[$key].Resolved = $false }
     } else {
-        $mbxAccess[$entryIdentity] = [PSCustomObject]@{
-            Mailbox    = $entryIdentity
+        $display = if ($e.Resolved) { $e.Smtp } else { $e.RawId }
+        $mbxAccess[$key] = [PSCustomObject]@{
+            DisplayKey = $display
             FullAccess = $false
             SendAs     = $true
+            Resolved   = $e.Resolved
+            FAIdentity = $null
+            SAIdentity = $e.RawId
         }
     }
 }
@@ -289,11 +322,13 @@ Write-Host "  +-- MAILBOX ACCESS ($($mbxAccess.Count)) ---------------------" -F
 if ($mbxAccess.Count -eq 0) {
     Write-Host "    (none)" -ForegroundColor DarkGray
 } else {
-    $mbxAccess.Values | Sort-Object Mailbox | ForEach-Object {
+    $mbxAccess.Values | Sort-Object DisplayKey | ForEach-Object {
         $rights = @()
         if ($_.FullAccess) { $rights += 'FullAccess' }
         if ($_.SendAs)     { $rights += 'SendAs' }
-        Write-Host ("    {0,-50} [{1}]" -f $_.Mailbox, ($rights -join ' + '))
+        $note = if (-not $_.Resolved) { '  (orphaned/soft-deleted - cannot remove)' } else { '' }
+        $col  = if (-not $_.Resolved) { 'DarkGray' } else { 'White' }
+        Write-Host ("    {0,-50} [{1}]{2}" -f $_.DisplayKey, ($rights -join ' + '), $note) -ForegroundColor $col
     }
 }
 
@@ -318,9 +353,9 @@ foreach ($v in $mbxAccess.Values) {
     if ($v.SendAs)     { $detailParts += 'SendAs' }
     [void]$AuditRows.Add([PSCustomObject]@{
         Category   = 'Mailbox'
-        Identity   = $v.Mailbox
+        Identity   = $v.DisplayKey
         Detail     = ($detailParts -join ' + ')
-        Eligible   = $true
+        Eligible   = $v.Resolved
     })
 }
 foreach ($g in $Groups) {
@@ -424,17 +459,27 @@ if ($mbxSel.Mode -eq 'Skip' -or $mbxSel.Targets.Count -eq 0) {
             $saOk     = -not $info.SendAs
             $faError  = $null
             $saError  = $null
+            $notes    = @()
+            $noAce    = $false   # a removal warned that the ACE wasn't present
 
             if ($info.FullAccess) {
+                $wv = $null
                 try {
-                    Remove-MailboxPermission -Identity $mbxKey -User $TargetUser -AccessRights FullAccess -Confirm:$false -ErrorAction Stop | Out-Null
+                    Remove-MailboxPermission -Identity $info.FAIdentity -User $TargetUser -AccessRights FullAccess -Confirm:$false -WarningVariable wv -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
                     $faOk = $true
+                    if ($wv -and (($wv -join ' ') -match "ACE doesn't exist|does not exist")) {
+                        $notes += 'FullAccess ACE not present (nothing to remove)'; $noAce = $true
+                    }
                 } catch { $faError = $_.Exception.Message }
             }
             if ($info.SendAs) {
+                $wv = $null
                 try {
-                    Remove-RecipientPermission -Identity $mbxKey -Trustee $TargetUser -AccessRights SendAs -Confirm:$false -ErrorAction Stop | Out-Null
+                    Remove-RecipientPermission -Identity $info.SAIdentity -Trustee $TargetUser -AccessRights SendAs -Confirm:$false -WarningVariable wv -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
                     $saOk = $true
+                    if ($wv -and (($wv -join ' ') -match "ACE doesn't exist|does not exist")) {
+                        $notes += 'SendAs ACE not present (orphaned/soft-deleted - nothing to remove)'; $noAce = $true
+                    }
                 } catch { $saError = $_.Exception.Message }
             }
 
@@ -446,9 +491,13 @@ if ($mbxSel.Mode -eq 'Skip' -or $mbxSel.Targets.Count -eq 0) {
               elseif (-not $faOk)                  { 'Failed-FullAccess' }
               else                                  { 'Failed-SendAs' }
 
+            # Nothing was actually present to remove (orphaned grant) - don't claim a removal.
+            if ($status -like 'Removed-*' -and $noAce) { $status = 'Skipped-NoACE' }
+
             $msgParts = @()
             if ($faError) { $msgParts += "FA: $faError" }
             if ($saError) { $msgParts += "SA: $saError" }
+            $msgParts += $notes
             $msg = $msgParts -join ' | '
 
             $detailStr = if ($info.FullAccess -and $info.SendAs) { 'FullAccess + SendAs' }
@@ -456,12 +505,12 @@ if ($mbxSel.Mode -eq 'Skip' -or $mbxSel.Targets.Count -eq 0) {
                          else                                     { 'SendAs' }
 
             $RemovalResults.Add([PSCustomObject]@{
-                Category = 'Mailbox'; Identity = $mbxKey; Detail = $detailStr
+                Category = 'Mailbox'; Identity = $info.DisplayKey; Detail = $detailStr
                 Status   = $status; ErrorMessage = $msg
             })
 
-            $col = if ($status -like 'Removed-*') { 'Green' } else { 'Red' }
-            Write-Host "  $status : $mbxKey" -ForegroundColor $col
+            $col = if ($status -like 'Removed-*') { 'Green' } elseif ($status -like 'Skipped*') { 'Yellow' } else { 'Red' }
+            Write-Host "  $status : $($info.DisplayKey)" -ForegroundColor $col
         }
     } else {
         Write-Host "  Mailbox phase aborted." -ForegroundColor Red
@@ -563,6 +612,7 @@ Write-Host "  Sessions disconnected." -ForegroundColor DarkGray
 #  SUMMARY
 # ----------------------------------------------------------
 $RemovedCnt  = ($RemovalResults | Where-Object { $_.Status -like 'Removed*' }).Count
+$SkippedCnt  = ($RemovalResults | Where-Object { $_.Status -like 'Skipped*' }).Count
 $FailedCnt   = ($RemovalResults | Where-Object { $_.Status -like 'Failed*'  }).Count
 
 Write-Host ""
@@ -576,6 +626,7 @@ Write-Host ("  | Group Memberships   : {0,-27}|" -f $Groups.Count) -ForegroundCo
 Write-Host ("  |   (eligible to remove): {0,-25}|" -f (@($Groups | Where-Object Eligible).Count)) -ForegroundColor White
 Write-Host ("  | Actions Executed    : {0,-27}|" -f $RemovalResults.Count) -ForegroundColor White
 Write-Host ("  |   Removed           : {0,-27}|" -f $RemovedCnt)  -ForegroundColor White
+Write-Host ("  |   Skipped (no ACE)  : {0,-27}|" -f $SkippedCnt)  -ForegroundColor White
 Write-Host ("  |   Failed            : {0,-27}|" -f $FailedCnt)   -ForegroundColor White
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
