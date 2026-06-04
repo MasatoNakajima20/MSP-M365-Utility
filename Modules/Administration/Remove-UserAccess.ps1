@@ -106,7 +106,7 @@ $RemovalCsv    = Join-Path $OutputRoot "UserAccessRemoval_${TenantCode}_${Timest
 Write-Host ""
 Write-Host "  [1/5] Checking required modules..." -ForegroundColor Cyan
 # Graph modules first so their newer MSAL is available before EXO's older
-# bundled copy on PS 5.1. (Connect order is version-adaptive below.)
+# bundled copy. (Connect order is Graph-first below, on all PS versions.)
 foreach ($Mod in @('Microsoft.Graph.Users','Microsoft.Graph.Groups','ExchangeOnlineManagement')) {
     if (-not (Get-Module -ListAvailable -Name $Mod)) {
         Write-Host "  [!] Module '$Mod' not found. Installing..." -ForegroundColor Yellow
@@ -119,23 +119,15 @@ foreach ($Mod in @('Microsoft.Graph.Users','Microsoft.Graph.Groups','ExchangeOnl
 Write-Host ""
 Write-Host "  [2/5] Connecting..." -ForegroundColor Cyan
 try {
-    # Connection order is version-adaptive:
-    #   PS 7+  : EXO first - no MSAL conflict (Graph SDK isolates its assemblies),
-    #            and EXO's WAM sign-in gives the native auth window with Graph riding it.
-    #   PS 5.1 : Graph first - loads the newer MSAL before EXO's older bundled copy,
-    #            avoiding "Method not found: WithLogging".
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-        Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-        Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
-        Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.ReadWrite.All" -NoWelcome -ErrorAction Stop
-        Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
-    }
-    else {
-        Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.ReadWrite.All" -NoWelcome -ErrorAction Stop
-        Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
-        Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-        Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
-    }
+    # Connect Microsoft Graph FIRST, always. ExchangeOnlineManagement bundles an older
+    # Microsoft.Identity.Client (MSAL); if it loads first, Connect-MgGraph fails with
+    # "Method not found: WithLogging". This happens even under PowerShell 7 (the Graph
+    # SDK's assembly isolation does not cover this auth path), so Graph must initialise
+    # its newer MSAL before EXO loads its copy.
+    Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.ReadWrite.All" -NoWelcome -ErrorAction Stop
+    Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+    Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
 } catch {
     Write-Host "  [ERROR] Failed to connect: $_" -ForegroundColor Red
     Read-Host "`n  Press Enter to exit"; exit 1
