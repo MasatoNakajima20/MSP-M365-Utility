@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.7.0-beta'
+$script:Version    = '0.8.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -101,6 +101,12 @@ $script:Modules = @(
         Title       = 'Remove Mailbox Access (FullAccess + SendAs)'
         Category    = 'Administration'
         Description = 'Bulk remove FullAccess + SendAs from a target mailbox.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Remove-UserAccess.ps1'
+        Title       = 'User Access: Discover and Remove'
+        Category    = 'Administration'
+        Description = 'Audit a user''s mailbox access and group memberships, then selectively remove (paste-list or "all").'
     }
     [PSCustomObject]@{
         File        = 'Modules/Utility/Install-ExchangeOnlineModule.ps1'
