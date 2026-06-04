@@ -88,10 +88,8 @@ $ScriptStart = [System.Diagnostics.Stopwatch]::StartNew()
 # ----------------------------------------------------------
 Write-Host "  [1/4] Checking required modules..." -ForegroundColor Cyan
 
-# NOTE: Graph modules are listed first on purpose. Importing/connecting Graph
-# before ExchangeOnlineManagement makes the newer Microsoft.Identity.Client
-# (MSAL) assembly load first, avoiding the "Method not found: WithLogging"
-# conflict caused by EXO bundling an older MSAL.
+# Graph modules listed first so their newer MSAL is available before EXO's
+# older bundled copy on PS 5.1. (Connect order is version-adaptive below.)
 $RequiredModules = @(
     'Microsoft.Graph.Users',
     'Microsoft.Graph.Groups',
@@ -113,12 +111,25 @@ Write-Host ""
 Write-Host "  [2/4] Connecting to Microsoft 365 services..." -ForegroundColor Cyan
 
 try {
-    # Connect Graph FIRST so the newer MSAL assembly loads before EXO's older one.
-    Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.Read.All" -NoWelcome -ErrorAction Stop
-    Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+    # Connection order is version-adaptive:
+    #   PS 7+  : EXO first - no MSAL conflict (Graph SDK isolates its assemblies),
+    #            and EXO's WAM sign-in gives the native auth window with Graph riding it.
+    #   PS 5.1 : Graph first - loads the newer MSAL before EXO's older bundled copy,
+    #            avoiding "Method not found: WithLogging".
+    if ($PSVersionTable.PSVersion.Major -ge 7) {
+        Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+        Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
 
-    Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
+        Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.Read.All" -NoWelcome -ErrorAction Stop
+        Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+    }
+    else {
+        Connect-MgGraph -Scopes "User.Read.All","Group.Read.All","GroupMember.Read.All" -NoWelcome -ErrorAction Stop
+        Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+
+        Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
+        Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
+    }
 }
 catch {
     Write-Host "  [ERROR] Failed to connect: $_" -ForegroundColor Red
