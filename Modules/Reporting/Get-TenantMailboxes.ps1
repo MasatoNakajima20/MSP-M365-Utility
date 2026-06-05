@@ -54,6 +54,7 @@ if (-not (Test-Path $OutputRoot)) {
     }
     catch {
         Write-Host "  [ERROR] Could not create output folder '$OutputRoot': $_" -ForegroundColor Red
+        Read-Host "`n  Press Enter to exit"
         exit 1
     }
 }
@@ -108,6 +109,8 @@ try {
 }
 catch {
     Write-Host "  [ERROR] Failed to connect: $_" -ForegroundColor Red
+    Disconnect-MgGraph -ErrorAction SilentlyContinue
+    Read-Host "`n  Press Enter to exit"
     exit 1
 }
 
@@ -126,6 +129,7 @@ catch {
     Write-Host "  [ERROR] Could not retrieve mailboxes: $_" -ForegroundColor Red
     Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
     Disconnect-MgGraph -ErrorAction SilentlyContinue
+    Read-Host "`n  Press Enter to exit"
     exit 1
 }
 
@@ -244,3 +248,4 @@ Write-Host "  +--------------------------------------------------+" -ForegroundC
 Write-Host ("  | Total Run Time  : {0,-31}|" -f $RunTime)       -ForegroundColor Yellow
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
+Read-Host "  Press Enter to exit"

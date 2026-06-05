@@ -26,6 +26,7 @@ $Members | ForEach-Object { Write-Host "  - $_" }
 $Confirm = Read-Host "`nProceed? (Y/N)"
 if ($Confirm -notin @("Y","y")) {
     Write-Host "Aborted." -ForegroundColor Red
+    Read-Host "`nPress Enter to exit"
     exit
 }
 
@@ -43,3 +44,4 @@ foreach ($Member in $Members) {
 }
 
 Write-Host "`nDone!" -ForegroundColor Cyan
+Read-Host "`nPress Enter to exit"

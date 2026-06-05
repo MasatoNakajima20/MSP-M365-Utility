@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.8.4-beta'
+$script:Version    = '0.8.5-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -172,8 +172,10 @@ function Invoke-Module {
 
     $psExe = if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' }
     try {
+        # No -NoExit: the window closes when the module finishes. Each module ends
+        # with a "Press Enter to exit" pause (including on error/abort) so results
+        # stay visible until the operator dismisses the window.
         Start-Process -FilePath $psExe -ArgumentList @(
-            '-NoExit',
             '-ExecutionPolicy', 'Bypass',
             '-File', $localPath
         ) | Out-Null

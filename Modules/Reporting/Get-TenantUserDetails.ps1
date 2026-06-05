@@ -53,6 +53,7 @@ if (-not (Test-Path $OutputRoot)) {
     }
     catch {
         Write-Host "  [ERROR] Could not create output folder '$OutputRoot': $_" -ForegroundColor Red
+        Read-Host "`n  Press Enter to exit"
         exit 1
     }
 }
