@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.10.0-beta'
+$script:Version    = '0.10.1-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -213,21 +213,57 @@ function Open-WorkDir {
     Start-Process explorer.exe $script:WorkDir | Out-Null
 }
 
+# Returns the highest installed [version] of a module across ALL standard
+# module locations on disk - not just the current shell's module path. This
+# avoids reporting a stale version when a module was updated under a different
+# PowerShell scope (e.g. PS7's Documents\PowerShell\Modules vs Windows PS 5.1's
+# Documents\WindowsPowerShell\Modules). Returns $null if not installed anywhere.
+function Get-LatestModuleVersion {
+    param([string]$Name)
+
+    $versions = New-Object System.Collections.Generic.List[version]
+
+    # Whatever the current shell can see
+    Get-Module -ListAvailable -Name $Name -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.Version) { [void]$versions.Add([version]$_.Version) }
+    }
+
+    # Plus every version folder on disk in the well-known module roots
+    $roots = @(
+        (Join-Path $env:USERPROFILE 'Documents\PowerShell\Modules'),
+        (Join-Path $env:USERPROFILE 'Documents\WindowsPowerShell\Modules'),
+        (Join-Path $env:ProgramFiles  'PowerShell\Modules'),
+        (Join-Path $env:ProgramFiles  'WindowsPowerShell\Modules')
+    )
+    foreach ($root in $roots) {
+        $modDir = Join-Path $root $Name
+        if (Test-Path $modDir) {
+            Get-ChildItem -Path $modDir -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                $v = $null
+                if ([version]::TryParse($_.Name, [ref]$v)) { [void]$versions.Add($v) }
+            }
+        }
+    }
+
+    if ($versions.Count -eq 0) { return $null }
+    return ($versions | Sort-Object -Descending | Select-Object -First 1)
+}
+
 function Get-RequiredPrereqStatus {
     # Returns an ordered list of @{Name, Ok, Detail} for the landing-page indicator.
     $result = New-Object System.Collections.Generic.List[PSCustomObject]
 
     # Exchange Online
-    $exo = Get-Module -ListAvailable -Name 'ExchangeOnlineManagement' -ErrorAction SilentlyContinue
+    $exoVer = Get-LatestModuleVersion -Name 'ExchangeOnlineManagement'
     $result.Add([PSCustomObject]@{
         Name   = 'Exchange Online'
-        Ok     = [bool]$exo
-        Detail = if ($exo) { 'v' + (($exo | Sort-Object Version -Descending | Select-Object -First 1).Version) } else { 'Missing' }
+        Ok     = [bool]$exoVer
+        Detail = if ($exoVer) { "v$exoVer" } else { 'Missing' }
     })
 
     # MS Graph - require all 4 submodules we actually use
     $graphMods = @('Microsoft.Graph.Users','Microsoft.Graph.Groups','Microsoft.Graph.Reports','Microsoft.Graph.Identity.SignIns')
-    $missingGraph = @($graphMods | Where-Object { -not (Get-Module -ListAvailable -Name $_ -ErrorAction SilentlyContinue) })
+    $missingGraph = @($graphMods | Where-Object { -not (Get-LatestModuleVersion -Name $_) })
     $result.Add([PSCustomObject]@{
         Name   = 'MS Graph'
         Ok     = ($missingGraph.Count -eq 0)
