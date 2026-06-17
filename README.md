@@ -29,6 +29,8 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Get-TenantMailboxes.ps1` | Enumerate mailboxes in a tenant |
 | `Get-TenantGroupMembership.ps1` | Report group membership across a tenant |
 | `Get-TenantMFAStatus.ps1` | MFA status and authentication methods for licensed users (guests excluded) |
+| `Get-TenantCalendarAccess.ps1` | Delegated calendar permissions across all mailboxes, classified by type (User/Shared/Room/Equipment) |
+| `Get-TenantMailboxStorage.ps1` | Mailbox usage vs quota (User/Shared) plus archive on/off and archive consumption |
 
 ### Administration (`Modules/Administration/`)
 

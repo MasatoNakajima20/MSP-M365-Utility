@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.9.0-beta'
+$script:Version    = '0.10.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -53,6 +53,18 @@ $script:Modules = @(
         Title       = 'Tenant MFA Status'
         Category    = 'Reporting'
         Description = 'Licensed users (guests excluded) with MFA status, default method, and Authenticator/SMS/OTP flags.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Reporting/Get-TenantCalendarAccess.ps1'
+        Title       = 'Tenant Calendar Access'
+        Category    = 'Reporting'
+        Description = 'Delegated calendar permissions across all mailboxes, classified by type (User/Shared/Room/Equipment).'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Reporting/Get-TenantMailboxStorage.ps1'
+        Title       = 'Tenant Mailbox Storage'
+        Category    = 'Reporting'
+        Description = 'Mailbox usage vs quota (User/Shared) plus archive on/off and archive consumption.'
     }
     [PSCustomObject]@{
         File        = 'Modules/Administration/Add-DistroMember.ps1'
