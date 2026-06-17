@@ -43,6 +43,7 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Add-MailboxAccess.ps1` | Bulk grant FullAccess + SendAs (creates target as shared mailbox if missing) |
 | `Remove-MailboxAccess.ps1` | Bulk remove FullAccess + SendAs from a target mailbox |
 | `Remove-UserAccess.ps1` | Offboarding helper: audit a user's mailbox access + group memberships, then selectively remove |
+| `Request-OneDriveProvision.ps1` | Pre-provision OneDrive for a pasted list of users, one by one (SharePoint Online) |
 
 ### Utility (`Modules/Utility/`)
 

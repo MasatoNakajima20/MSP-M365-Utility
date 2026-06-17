@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.8.5-beta'
+$script:Version    = '0.9.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -107,6 +107,12 @@ $script:Modules = @(
         Title       = 'User Access: Discover and Remove'
         Category    = 'Administration'
         Description = 'Audit a user''s mailbox access and group memberships, then selectively remove (paste-list or "all").'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Request-OneDriveProvision.ps1'
+        Title       = 'OneDrive Pre-Provisioning'
+        Category    = 'Administration'
+        Description = 'Pre-provision OneDrive for a pasted list of users, one by one. SharePoint Online.'
     }
     [PSCustomObject]@{
         File        = 'Modules/Utility/Install-ExchangeOnlineModule.ps1'
