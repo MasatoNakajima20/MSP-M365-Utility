@@ -6,8 +6,9 @@
 
 .DESCRIPTION
     Connects to Microsoft Graph to gather user information including
-    FirstName, LastName, PrimarySmtpAddress, Title, Department, Manager,
-    City, State, Country, PhoneNumber (business), and MobileNumber.
+    FirstName, LastName, PrimarySmtpAddress, AccountStatus (Enabled/Disabled),
+    Title, Department, Manager, City, State, Country, PhoneNumber (business),
+    and MobileNumber.
     Displays a real-time progress bar and exports results to CSV.
 
     Scope is selectable at runtime:
@@ -124,7 +125,7 @@ Write-Host "  [3/4] Retrieving users from Microsoft Graph (scope: $Scope)..." -F
 try {
     $GetUserParams = @{
         All         = $true
-        Property    = "GivenName,Surname,Mail,JobTitle,Department,UserPrincipalName,Id,City,State,Country,BusinessPhones,MobilePhone,UserType"
+        Property    = "GivenName,Surname,Mail,JobTitle,Department,UserPrincipalName,Id,City,State,Country,BusinessPhones,MobilePhone,UserType,AccountEnabled"
         ErrorAction = 'Stop'
     }
     if ($Scope -eq 'Users') {
@@ -182,11 +183,13 @@ foreach ($User in $Users) {
     }
 
     $BusinessPhone = if ($User.BusinessPhones -and $User.BusinessPhones.Count -gt 0) { $User.BusinessPhones[0] } else { $null }
+    $AccountStatus = if ($User.AccountEnabled -eq $true) { 'Enabled' } elseif ($User.AccountEnabled -eq $false) { 'Disabled' } else { 'Unknown' }
 
     $Results.Add([PSCustomObject]@{
         FirstName          = $User.GivenName
         LastName           = $User.Surname
         PrimarySmtpAddress = if ($User.Mail) { $User.Mail } else { $User.UserPrincipalName }
+        AccountStatus      = $AccountStatus
         Title              = $User.JobTitle
         Department         = $User.Department
         Manager            = $ManagerName
@@ -228,6 +231,8 @@ $WithTitleCount      = ($Results | Where-Object { $_.Title      }).Count
 $WithDeptCount       = ($Results | Where-Object { $_.Department }).Count
 $WithManagerCount    = ($Results | Where-Object { $_.Manager    }).Count
 $WithSmtpCount       = ($Results | Where-Object { $_.PrimarySmtpAddress }).Count
+$EnabledCount        = ($Results | Where-Object { $_.AccountStatus -eq 'Enabled'  }).Count
+$DisabledCount       = ($Results | Where-Object { $_.AccountStatus -eq 'Disabled' }).Count
 
 $RunTime = "{0:D2}h {1:D2}m {2:D2}s {3:D3}ms" -f `
     $Elapsed.Hours, $Elapsed.Minutes, $Elapsed.Seconds, $Elapsed.Milliseconds
@@ -239,6 +244,8 @@ Write-Host "  +--------------------------------------------------+" -ForegroundC
 Write-Host ("  | Tenant Code      : {0,-30}|" -f $TenantCode)         -ForegroundColor White
 Write-Host ("  | Scope            : {0,-30}|" -f $Scope)              -ForegroundColor White
 Write-Host ("  | Total Users      : {0,-30}|" -f $TotalCount)         -ForegroundColor White
+Write-Host ("  |   Enabled        : {0,-30}|" -f $EnabledCount)       -ForegroundColor White
+Write-Host ("  |   Disabled       : {0,-30}|" -f $DisabledCount)      -ForegroundColor White
 Write-Host ("  | With SMTP        : {0,-30}|" -f $WithSmtpCount)      -ForegroundColor White
 Write-Host ("  | With Title       : {0,-30}|" -f $WithTitleCount)     -ForegroundColor White
 Write-Host ("  | With Department  : {0,-30}|" -f $WithDeptCount)      -ForegroundColor White
