@@ -6,8 +6,13 @@
 
 .DESCRIPTION
     Connects to Microsoft Graph to gather user information including
-    FirstName, LastName, PrimarySmtpAddress, Title, Department, and Manager.
+    FirstName, LastName, PrimarySmtpAddress, Title, Department, Manager,
+    City, State, Country, PhoneNumber (business), and MobileNumber.
     Displays a real-time progress bar and exports results to CSV.
+
+    Scope is selectable at runtime:
+        Users (default) - userType eq 'Member' (excludes guests)
+        All             - every user object, including guests
 
 .NOTES
     Required Modules:
@@ -44,6 +49,14 @@ do {
         Write-Host "  [!] Invalid input. Please enter exactly 3 letters (A-Z)." -ForegroundColor Yellow
     }
 } while ($TenantCode -notmatch '^[A-Z]{3}$')
+
+# ----------------------------------------------------------
+#  INPUT - SCOPE (All users, or Members/Users only)
+# ----------------------------------------------------------
+#   Users (default) : userType eq 'Member' - excludes guests
+#   All             : every user object, including guests
+$ScopeAnswer = (Read-Host "  Report scope - [U]sers only (Members) / [A]ll users  [U]").Trim().ToUpper()
+$Scope       = if ($ScopeAnswer -eq 'A') { 'All' } else { 'Users' }
 
 # Output path (C:\MSP-M365-Utility\)
 $OutputRoot = 'C:\MSP-M365-Utility'
@@ -106,12 +119,19 @@ catch {
 #  RETRIEVE USERS
 # ----------------------------------------------------------
 Write-Host ""
-Write-Host "  [3/4] Retrieving users from Microsoft Graph..." -ForegroundColor Cyan
+Write-Host "  [3/4] Retrieving users from Microsoft Graph (scope: $Scope)..." -ForegroundColor Cyan
 
 try {
-    $Users = Get-MgUser -All `
-        -Property "GivenName,Surname,Mail,JobTitle,Department,UserPrincipalName,Id" `
-        -ErrorAction Stop
+    $GetUserParams = @{
+        All         = $true
+        Property    = "GivenName,Surname,Mail,JobTitle,Department,UserPrincipalName,Id,City,State,Country,BusinessPhones,MobilePhone,UserType"
+        ErrorAction = 'Stop'
+    }
+    if ($Scope -eq 'Users') {
+        $GetUserParams['Filter'] = "userType eq 'Member'"
+    }
+
+    $Users = Get-MgUser @GetUserParams
 
     $TotalCount = $Users.Count
     Write-Host "  [OK] Found $TotalCount user(s)." -ForegroundColor Green
@@ -161,6 +181,8 @@ foreach ($User in $Users) {
         $ManagerName = $null
     }
 
+    $BusinessPhone = if ($User.BusinessPhones -and $User.BusinessPhones.Count -gt 0) { $User.BusinessPhones[0] } else { $null }
+
     $Results.Add([PSCustomObject]@{
         FirstName          = $User.GivenName
         LastName           = $User.Surname
@@ -168,6 +190,11 @@ foreach ($User in $Users) {
         Title              = $User.JobTitle
         Department         = $User.Department
         Manager            = $ManagerName
+        City               = $User.City
+        State              = $User.State
+        Country            = $User.Country
+        PhoneNumber        = $BusinessPhone
+        MobileNumber       = $User.MobilePhone
     })
 }
 
@@ -210,6 +237,7 @@ Write-Host "  +--------------------------------------------------+" -ForegroundC
 Write-Host "  |                  RUN SUMMARY                    |" -ForegroundColor Cyan
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ("  | Tenant Code      : {0,-30}|" -f $TenantCode)         -ForegroundColor White
+Write-Host ("  | Scope            : {0,-30}|" -f $Scope)              -ForegroundColor White
 Write-Host ("  | Total Users      : {0,-30}|" -f $TotalCount)         -ForegroundColor White
 Write-Host ("  | With SMTP        : {0,-30}|" -f $WithSmtpCount)      -ForegroundColor White
 Write-Host ("  | With Title       : {0,-30}|" -f $WithTitleCount)     -ForegroundColor White
