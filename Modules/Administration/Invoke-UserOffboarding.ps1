@@ -26,6 +26,10 @@
     Connects Microsoft Graph FIRST, then Exchange Online, to avoid the MSAL
     "WithLogging" assembly conflict.
 
+    Two confirmation gates: (1) type the exact account count to start the run,
+    then (2) a per-account Y/N prompt immediately before each account is
+    touched. Answering anything but Y skips that account (logged as Skipped).
+
     Every action is logged. Successful actions are shown with a blank Detail;
     the Detail is only populated for actions that need attention (Partial /
     Info / Skipped / Failed). The results CSV is written to C:\MSP-M365-Utility\
@@ -270,7 +274,14 @@ foreach ($Upn in $Users) {
                    -PercentComplete $PercentComplete
 
     Write-Host ""
-    Write-Host "  === $Upn ===" -ForegroundColor White
+    Write-Host "  === $Upn  ($Counter of $Total) ===" -ForegroundColor White
+
+    # Per-account confirmation - stricter than the batch gate; skip on anything but Y
+    $goUser = Read-Host "      Offboard THIS account? (Y/N)"
+    if ($goUser -notin @('Y','y')) {
+        Add-Result $Upn '' 'Offboarding' 'Skipped' 'Skipped by operator at per-account prompt'
+        continue
+    }
 
     # Resolve user
     $u = $null
