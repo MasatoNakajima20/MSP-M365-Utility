@@ -6,9 +6,10 @@
     MSP M365 Utility scripts.
 
 .DESCRIPTION
-    Installs the four specific Microsoft.Graph.* submodules used by the
-    reporting and administration modules:
+    Installs the specific Microsoft.Graph.* submodules used by the reporting
+    and administration modules:
         - Microsoft.Graph.Users
+        - Microsoft.Graph.Users.Actions
         - Microsoft.Graph.Groups
         - Microsoft.Graph.Reports
         - Microsoft.Graph.Identity.SignIns
@@ -33,6 +34,7 @@ Write-Host ""
 
 $GraphModules = @(
     'Microsoft.Graph.Users',
+    'Microsoft.Graph.Users.Actions',
     'Microsoft.Graph.Groups',
     'Microsoft.Graph.Reports',
     'Microsoft.Graph.Identity.SignIns'

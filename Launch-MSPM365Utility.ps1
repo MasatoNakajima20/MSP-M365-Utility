@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.11.0-beta'
+$script:Version    = '0.11.1-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -142,7 +142,7 @@ $script:Modules = @(
         File        = 'Modules/Utility/Install-MicrosoftGraphModule.ps1'
         Title       = 'Install Microsoft Graph Modules'
         Category    = 'Utility'
-        Description = 'Install / update the 4 Microsoft.Graph submodules used by these scripts (Users, Groups, Reports, Identity.SignIns).'
+        Description = 'Install / update the Microsoft.Graph submodules used by these scripts (Users, Users.Actions, Groups, Reports, Identity.SignIns).'
     }
     [PSCustomObject]@{
         File        = 'Modules/Utility/Install-PowerShell7.ps1'
@@ -267,13 +267,13 @@ function Get-RequiredPrereqStatus {
         Detail = if ($exoVer) { "v$exoVer" } else { 'Missing' }
     })
 
-    # MS Graph - require all 4 submodules we actually use
-    $graphMods = @('Microsoft.Graph.Users','Microsoft.Graph.Groups','Microsoft.Graph.Reports','Microsoft.Graph.Identity.SignIns')
+    # MS Graph - require all submodules we actually use across the modules
+    $graphMods = @('Microsoft.Graph.Users','Microsoft.Graph.Users.Actions','Microsoft.Graph.Groups','Microsoft.Graph.Reports','Microsoft.Graph.Identity.SignIns')
     $missingGraph = @($graphMods | Where-Object { -not (Get-LatestModuleVersion -Name $_) })
     $result.Add([PSCustomObject]@{
         Name   = 'MS Graph'
         Ok     = ($missingGraph.Count -eq 0)
-        Detail = if ($missingGraph.Count -eq 0) { 'All 4 submodules present' } else { "Missing: $($missingGraph.Count)/$($graphMods.Count)" }
+        Detail = if ($missingGraph.Count -eq 0) { "All $($graphMods.Count) submodules present" } else { "Missing: $($missingGraph.Count)/$($graphMods.Count)" }
     })
 
     # PowerShell 7

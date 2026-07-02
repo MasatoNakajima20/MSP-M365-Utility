@@ -58,6 +58,7 @@ Write-Host ""
 Write-Host "  [2/3] Microsoft Graph submodules" -ForegroundColor Cyan
 $GraphModules = @(
     'Microsoft.Graph.Users',
+    'Microsoft.Graph.Users.Actions',
     'Microsoft.Graph.Groups',
     'Microsoft.Graph.Reports',
     'Microsoft.Graph.Identity.SignIns'
