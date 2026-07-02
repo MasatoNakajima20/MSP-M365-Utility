@@ -26,11 +26,11 @@
     Connects Microsoft Graph FIRST, then Exchange Online, to avoid the MSAL
     "WithLogging" assembly conflict.
 
-    Only actions that need attention are logged (Partial / Info / Skipped /
-    Failed). Successful actions are NOT recorded - the results CSV and console
-    output are an exceptions view. The CSV is written to C:\MSP-M365-Utility\
+    Every action is logged. Successful actions are shown with a blank Detail;
+    the Detail is only populated for actions that need attention (Partial /
+    Info / Skipped / Failed). The results CSV is written to C:\MSP-M365-Utility\
     and a summary is printed at the end (including the >50 GB retained-license
-    flags). An empty/near-empty log therefore means a clean run.
+    flags).
 
 .NOTES
     Required Modules:
@@ -213,9 +213,9 @@ $Results = [System.Collections.Generic.List[PSCustomObject]]::new()
 function Add-Result {
     param([string]$Upn, [string]$Display, [string]$Action, [string]$Status, [string]$Detail)
 
-    # Only note actions that need attention. Success is intentionally NOT logged
-    # (no console line, no CSV row) - the results are an exceptions view.
-    if ($Status -eq 'Success') { return }
+    # Success is shown but carries no note - the Detail is reserved for actions
+    # that need attention (Partial / Info / Skipped / Failed).
+    if ($Status -eq 'Success') { $Detail = '' }
 
     $Results.Add([PSCustomObject]@{
         UserPrincipalName = $Upn
@@ -225,6 +225,7 @@ function Add-Result {
         Detail            = $Detail
     })
     $col = switch ($Status) {
+        'Success' { 'Green' }
         'Skipped' { 'DarkGray' }
         'Info'    { 'Cyan' }
         'Partial' { 'Yellow' }
@@ -506,7 +507,7 @@ Write-Host "  |                  RUN SUMMARY                    |" -ForegroundCo
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ("  | Tenant Code         : {0,-27}|" -f $TenantCode)   -ForegroundColor White
 Write-Host ("  | Accounts Processed  : {0,-27}|" -f $Total)        -ForegroundColor White
-Write-Host ("  | Noted (non-Success) : {0,-27}|" -f $Results.Count)-ForegroundColor White
+Write-Host ("  | Action Rows Logged  : {0,-27}|" -f $Results.Count)-ForegroundColor White
 Write-Host ("  | Failed Actions      : {0,-27}|" -f $FailCount)    -ForegroundColor White
 Write-Host ("  | Partial Actions     : {0,-27}|" -f $PartialCount) -ForegroundColor White
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
