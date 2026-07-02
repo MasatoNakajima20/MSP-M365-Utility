@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.10.3-beta'
+$script:Version    = '0.11.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -125,6 +125,12 @@ $script:Modules = @(
         Title       = 'OneDrive Pre-Provisioning'
         Category    = 'Administration'
         Description = 'Pre-provision OneDrive for a pasted list of users, one by one. SharePoint Online.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Invoke-UserOffboarding.ps1'
+        Title       = 'User Offboarding (full pipeline)'
+        Category    = 'Administration'
+        Description = 'Disable, strip MFA, convert to shared, remove memberships/licenses for a paste-list. Per-user/per-action log; retains license if mailbox > 50GB.'
     }
     [PSCustomObject]@{
         File        = 'Modules/Utility/Install-ExchangeOnlineModule.ps1'

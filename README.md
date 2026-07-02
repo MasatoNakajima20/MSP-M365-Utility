@@ -46,6 +46,7 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Remove-MailboxAccess.ps1` | Bulk remove FullAccess + SendAs from a target mailbox |
 | `Remove-UserAccess.ps1` | Offboarding helper: audit a user's mailbox access + group memberships, then selectively remove |
 | `Request-OneDriveProvision.ps1` | Pre-provision OneDrive for a pasted list of users, one by one (SharePoint Online) |
+| `Invoke-UserOffboarding.ps1` | Full offboarding pipeline: disable, remove manager, revoke sessions/tokens, wipe MFA, convert to shared, remove memberships, remove license (retained if mailbox > 50GB). Per-user/per-action log |
 
 ### Utility (`Modules/Utility/`)
 
