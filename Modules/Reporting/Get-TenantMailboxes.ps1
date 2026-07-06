@@ -7,8 +7,9 @@
 .DESCRIPTION
     Connects to Exchange Online and Microsoft Graph to gather mailbox information
     including DisplayName, EmailAddress, RecipientTypeDetails, IsEnabled,
-    IsLicensed, and LastSignIn (last interactive sign-in). Displays a real-time
-    progress bar and exports results to CSV.
+    IsLicensed, LastSignIn (last interactive sign-in), and Stale (Yes if the
+    last sign-in is older than 90 days). Displays a real-time progress bar and
+    exports results to CSV.
 
 .NOTES
     Required Modules:
@@ -27,6 +28,8 @@
 # ----------------------------------------------------------
 $ErrorActionPreference = 'Stop'
 $Host.UI.RawUI.WindowTitle = "M365 Mailbox Inventory"
+$StaleDays = 90                       # LastSignIn older than this flags Stale = Yes
+$NowUtc    = (Get-Date).ToUniversalTime()
 
 # ----------------------------------------------------------
 #  BANNER
@@ -182,9 +185,13 @@ foreach ($Mbx in $Mailboxes) {
 
     # Last interactive sign-in (requires Entra ID P1/P2; blank if unavailable or never)
     $LastSignIn = $null
+    $Stale      = 'No Data'   # no sign-in record: never used, or a non-user mailbox
     if ($GraphUser -and $GraphUser.SignInActivity -and $GraphUser.SignInActivity.LastSignInDateTime) {
         try {
-            $LastSignIn = ([datetime]$GraphUser.SignInActivity.LastSignInDateTime).ToString('yyyy-MM-dd HH:mm')
+            $LastSignInDt = [datetime]$GraphUser.SignInActivity.LastSignInDateTime
+            $LastSignIn   = $LastSignInDt.ToString('yyyy-MM-dd HH:mm')
+            $DaysSince    = ($NowUtc - $LastSignInDt.ToUniversalTime()).TotalDays
+            $Stale        = if ($DaysSince -gt $StaleDays) { 'Yes' } else { 'No' }
         } catch {
             $LastSignIn = "$($GraphUser.SignInActivity.LastSignInDateTime)"
         }
@@ -207,6 +214,7 @@ foreach ($Mbx in $Mailboxes) {
         IsEnabled            = $IsEnabled
         IsLicensed           = $IsLicensed
         LastSignIn           = $LastSignIn
+        Stale                = $Stale
     })
 }
 
@@ -244,6 +252,7 @@ $OtherCount    = ($Results | Where-Object { $_.RecipientTypeDetails -notin @("Us
 $EnabledCount  = ($Results | Where-Object { $_.IsEnabled  -eq $true }).Count
 $LicensedCount = ($Results | Where-Object { $_.IsLicensed -eq $true }).Count
 $NoSignInCount = ($Results | Where-Object { -not $_.LastSignIn }).Count
+$StaleCount    = ($Results | Where-Object { $_.Stale -eq 'Yes' }).Count
 
 $RunTime = "{0:D2}h {1:D2}m {2:D2}s {3:D3}ms" -f `
     $Elapsed.Hours, $Elapsed.Minutes, $Elapsed.Seconds, $Elapsed.Milliseconds
@@ -261,6 +270,7 @@ Write-Host ("  |   Other         : {0,-31}|" -f $OtherCount)    -ForegroundColor
 Write-Host ("  | Enabled         : {0,-31}|" -f $EnabledCount)  -ForegroundColor White
 Write-Host ("  | Licensed        : {0,-31}|" -f $LicensedCount) -ForegroundColor White
 Write-Host ("  | No Sign-In Data : {0,-31}|" -f $NoSignInCount) -ForegroundColor White
+Write-Host ("  | Stale (>$StaleDays days) : {0,-24}|" -f $StaleCount) -ForegroundColor White
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ("  | Total Run Time  : {0,-31}|" -f $RunTime)       -ForegroundColor Yellow
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
