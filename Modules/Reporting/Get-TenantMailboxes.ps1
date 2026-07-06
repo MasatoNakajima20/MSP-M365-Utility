@@ -6,8 +6,9 @@
 
 .DESCRIPTION
     Connects to Exchange Online and Microsoft Graph to gather mailbox information
-    including DisplayName, EmailAddress, RecipientTypeDetails, IsEnabled, and
-    IsLicensed status. Displays a real-time progress bar and exports results to CSV.
+    including DisplayName, EmailAddress, RecipientTypeDetails, IsEnabled,
+    IsLicensed, and LastSignIn (last interactive sign-in). Displays a real-time
+    progress bar and exports results to CSV.
 
 .NOTES
     Required Modules:
@@ -15,7 +16,10 @@
         - Microsoft.Graph.Users     : Install-Module Microsoft.Graph.Users
     Required Permissions:
         - Exchange Online : View-Only Recipients (or higher)
-        - Microsoft Graph : User.Read.All
+        - Microsoft Graph : User.Read.All, AuditLog.Read.All (for sign-in activity)
+
+    Note: LastSignIn (signInActivity) requires Microsoft Entra ID P1/P2. Without
+    it, or for accounts that have never signed in, the value is blank.
 #>
 
 # ----------------------------------------------------------
@@ -101,7 +105,7 @@ try {
     # "Method not found: WithLogging". This happens even under PowerShell 7 (the Graph
     # SDK's assembly isolation does not cover this auth path), so Graph must initialise
     # its newer MSAL before EXO loads its copy.
-    Connect-MgGraph -Scopes "User.Read.All" -NoWelcome -ErrorAction Stop
+    Connect-MgGraph -Scopes "User.Read.All","AuditLog.Read.All" -NoWelcome -ErrorAction Stop
     Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
 
     Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
@@ -137,7 +141,7 @@ catch {
 Write-Host "  Fetching user data from Microsoft Graph..." -ForegroundColor DarkCyan
 
 $GraphUsers = @{}
-Get-MgUser -All -Property "UserPrincipalName,AccountEnabled,AssignedLicenses" |
+Get-MgUser -All -Property "UserPrincipalName,AccountEnabled,AssignedLicenses,signInActivity" |
     ForEach-Object { $GraphUsers[$_.UserPrincipalName.ToLower()] = $_ }
 
 $GraphCount = $GraphUsers.Count
@@ -176,6 +180,16 @@ foreach ($Mbx in $Mailboxes) {
     $IsEnabled  = if ($GraphUser) { $GraphUser.AccountEnabled }                   else { $null }
     $IsLicensed = if ($GraphUser) { ($GraphUser.AssignedLicenses.Count -gt 0) }   else { $null }
 
+    # Last interactive sign-in (requires Entra ID P1/P2; blank if unavailable or never)
+    $LastSignIn = $null
+    if ($GraphUser -and $GraphUser.SignInActivity -and $GraphUser.SignInActivity.LastSignInDateTime) {
+        try {
+            $LastSignIn = ([datetime]$GraphUser.SignInActivity.LastSignInDateTime).ToString('yyyy-MM-dd HH:mm')
+        } catch {
+            $LastSignIn = "$($GraphUser.SignInActivity.LastSignInDateTime)"
+        }
+    }
+
     # Friendly recipient type label
     $RecipientLabel = switch -Wildcard ($Mbx.RecipientTypeDetails) {
         "UserMailbox"       { "User"     }
@@ -192,6 +206,7 @@ foreach ($Mbx in $Mailboxes) {
         RecipientTypeDetails = $RecipientLabel
         IsEnabled            = $IsEnabled
         IsLicensed           = $IsLicensed
+        LastSignIn           = $LastSignIn
     })
 }
 
@@ -228,6 +243,7 @@ $ResourceCount = ($Results | Where-Object { $_.RecipientTypeDetails -eq "Resourc
 $OtherCount    = ($Results | Where-Object { $_.RecipientTypeDetails -notin @("User","Shared","Resource") }).Count
 $EnabledCount  = ($Results | Where-Object { $_.IsEnabled  -eq $true }).Count
 $LicensedCount = ($Results | Where-Object { $_.IsLicensed -eq $true }).Count
+$NoSignInCount = ($Results | Where-Object { -not $_.LastSignIn }).Count
 
 $RunTime = "{0:D2}h {1:D2}m {2:D2}s {3:D3}ms" -f `
     $Elapsed.Hours, $Elapsed.Minutes, $Elapsed.Seconds, $Elapsed.Milliseconds
@@ -244,6 +260,7 @@ Write-Host ("  |   Resource      : {0,-31}|" -f $ResourceCount) -ForegroundColor
 Write-Host ("  |   Other         : {0,-31}|" -f $OtherCount)    -ForegroundColor White
 Write-Host ("  | Enabled         : {0,-31}|" -f $EnabledCount)  -ForegroundColor White
 Write-Host ("  | Licensed        : {0,-31}|" -f $LicensedCount) -ForegroundColor White
+Write-Host ("  | No Sign-In Data : {0,-31}|" -f $NoSignInCount) -ForegroundColor White
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ("  | Total Run Time  : {0,-31}|" -f $RunTime)       -ForegroundColor Yellow
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
