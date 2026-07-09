@@ -14,6 +14,9 @@
         4. Remove all MFA / authentication methods (password excluded)
         5. Revoke tokens (same Graph revoke call as step 3)
         6. Convert the mailbox to a Shared Mailbox
+        6a. (Optional, prompted per account) Set forwarding to a given address
+        6b. (Optional, prompted per account) Grant FullAccess + SendAs to
+            one or more delegates on the mailbox
         7. Remove group memberships (DL, Mail-Enabled Security, M365, Security)
            and the user's access to shared mailboxes (FullAccess + SendAs)
         8. Check mailbox size:
@@ -283,6 +286,38 @@ foreach ($Upn in $Users) {
         continue
     }
 
+    # --- Optional per-account extras (collected now, applied after conversion) ---
+    # Forwarding
+    $FwdTarget = $null
+    $fwdAns = Read-Host "      Enable forwarding on this mailbox? (Y/N)"
+    if ($fwdAns -in @('Y','y')) {
+        do {
+            $FwdTarget = (Read-Host "        Forward to (email address)").Trim()
+            if ($FwdTarget -notmatch $EmailRegex) { Write-Host "        [!] Not a valid email address." -ForegroundColor Yellow }
+        } while ($FwdTarget -notmatch $EmailRegex)
+    }
+
+    # Delegates (FullAccess + SendAs)
+    $Delegates = [System.Collections.Generic.List[string]]::new()
+    $permAns = Read-Host "      Add mailbox delegates (FullAccess + SendAs)? (Y/N)"
+    if ($permAns -in @('Y','y')) {
+        Write-Host "        Paste delegate emails (one per line). Blank line to finish:" -ForegroundColor Yellow
+        $seenDel = @{}
+        while ($true) {
+            $dl = Read-Host
+            if ($dl -eq '') { break }
+            foreach ($cand in ($dl -split '[,;\s]+')) {
+                $de = $cand.Trim()
+                if (-not $de) { continue }
+                if ($de -notmatch $EmailRegex) { Write-Host "        [!] Skipped invalid: $de" -ForegroundColor DarkGray; continue }
+                $k = $de.ToLower()
+                if ($seenDel.ContainsKey($k)) { continue }
+                $seenDel[$k] = $true
+                [void]$Delegates.Add($de)
+            }
+        }
+    }
+
     # Resolve user
     $u = $null
     try {
@@ -363,6 +398,41 @@ foreach ($Upn in $Users) {
         Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox type = Shared'
     } catch {
         Add-Result $Upn $Display 'Convert to Shared' 'Failed' $_.Exception.Message
+    }
+
+    # 6a) Set forwarding (only if requested at the per-account prompt)
+    if ($FwdTarget) {
+        try {
+            Set-Mailbox -Identity $Upn -ForwardingSMTPAddress $FwdTarget -DeliverToMailboxAndForward $true -ErrorAction Stop
+            Add-Result $Upn $Display 'Set Forwarding' 'Success' ''
+        } catch {
+            Add-Result $Upn $Display 'Set Forwarding' 'Failed' "-> $FwdTarget : $($_.Exception.Message)"
+        }
+    }
+
+    # 6b) Add mailbox delegates - FullAccess + SendAs (only if requested)
+    if ($Delegates.Count -gt 0) {
+        $delOk = @(); $delFail = @()
+        foreach ($del in $Delegates) {
+            $faOk = $false; $saOk = $false; $errParts = @()
+            try {
+                Add-MailboxPermission -Identity $Upn -User $del -AccessRights FullAccess -AutoMapping:$true -ErrorAction Stop | Out-Null
+                $faOk = $true
+            } catch { $errParts += "FA: $($_.Exception.Message)" }
+            try {
+                Add-RecipientPermission -Identity $Upn -Trustee $del -AccessRights SendAs -Confirm:$false -ErrorAction Stop | Out-Null
+                $saOk = $true
+            } catch { $errParts += "SA: $($_.Exception.Message)" }
+
+            if ($faOk -and $saOk) { $delOk += $del } else { $delFail += "$del ($($errParts -join ' | '))" }
+        }
+        if ($delFail.Count -eq 0) {
+            Add-Result $Upn $Display 'Add Mailbox Delegates' 'Success' ''
+        } elseif ($delOk.Count -gt 0) {
+            Add-Result $Upn $Display 'Add Mailbox Delegates' 'Partial' ("Granted: " + ($delOk -join ', ') + " | Failed: " + ($delFail -join '; '))
+        } else {
+            Add-Result $Upn $Display 'Add Mailbox Delegates' 'Failed' ("Failed: " + ($delFail -join '; '))
+        }
     }
 
     # 7a) Remove group memberships
