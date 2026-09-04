@@ -4,8 +4,8 @@ Living status log for the MSP M365 Utility. Update after every meaningful change
 
 - **Repo:** https://github.com/MasatoNakajima20/MSP-M365-Utility (public)
 - **Local path:** `C:\Claude Projects\MSP 365 Reporting Tool`
-- **Current tagged release:** `0.12.0-beta`
-- **Launcher `$script:Version`:** `0.12.0-beta`
+- **Current tagged release:** `0.12.1-beta`
+- **Launcher `$script:Version`:** `0.12.1-beta`
 - **Last updated:** 2026-09-04
 
 ---
@@ -82,10 +82,9 @@ launcher catalog and appear in the GUI.
 - [ ] **RBAC Builder/Removal not yet run against a live tenant.** Reworked but
   unverified end-to-end; test the create → add-to-group → remove lifecycle on a
   non-production app first.
-- [ ] **`Microsoft.Graph.Applications` not in the prereq installer.** Needed by
-  `Invoke-RBACBuilder`; the module self-installs it, but the landing-page MS
-  Graph pill does not check for it. Consider adding it to Install-All /
-  Install-MicrosoftGraphModule and the pill's submodule list.
+- [x] ~~`Microsoft.Graph.Applications` not in the prereq installer.~~ Done in
+  0.12.1-beta: added to the MS Graph pill (now 6 submodules),
+  Install-MicrosoftGraphModule, and Install-All.
 
 ---
 
