@@ -77,8 +77,8 @@ launcher catalog and appear in the GUI.
 
 ## In Progress / Open items
 
-- [ ] **Offboarding not yet run against a live tenant.** `Invoke-UserOffboarding`
-  is the most destructive module; validate on a disposable/test account first.
+- [x] ~~Offboarding not yet run against a live tenant.~~ **Validated** against a
+  live tenant on 2026-09-04 (used by the operator, worked as intended).
 - [ ] **RBAC Builder/Removal not yet run against a live tenant.** Reworked but
   unverified end-to-end; test the create → add-to-group → remove lifecycle on a
   non-production app first.
