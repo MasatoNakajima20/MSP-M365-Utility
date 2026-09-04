@@ -50,7 +50,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$Purpose,
-    [string]$OutputDirectory = (Get-Location).Path,
+    [string]$OutputDirectory = 'C:\MSP-M365-Utility\Certificates',
     [int]$YearsValid = 5
 )
 
@@ -76,6 +76,7 @@ if ((Test-Path $pfxPath) -or (Test-Path $cerPath)) {
     $confirm = Read-Host "Type YES to overwrite and generate a new keypair"
     if ($confirm -ne 'YES') {
         Write-Host "Aborted. Nothing was changed." -ForegroundColor Red
+        Read-Host "`nPress Enter to exit"
         exit
     }
 }
@@ -112,3 +113,5 @@ Write-Host ""
 Write-Host "Record the thumbprint somewhere durable - whatever connects as this app later" -ForegroundColor Yellow
 Write-Host "(Connect-MgGraph, Connect-ExchangeOnline, MSAL, etc.) needs it, or the .pfx" -ForegroundColor Yellow
 Write-Host "itself, to authenticate." -ForegroundColor Yellow
+Write-Host ""
+Read-Host "Press Enter to exit"

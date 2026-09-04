@@ -47,6 +47,9 @@ Modules are organised by category. The launcher's landing screen lets you pick a
 | `Remove-UserAccess.ps1` | Offboarding helper: audit a user's mailbox access + group memberships, then selectively remove |
 | `Request-OneDriveProvision.ps1` | Pre-provision OneDrive for a pasted list of users, one by one (SharePoint Online) |
 | `Invoke-UserOffboarding.ps1` | Full offboarding pipeline: disable, remove manager, revoke sessions/tokens, wipe MFA, convert to shared, remove memberships, remove license (retained if mailbox > 50GB). Per-user/per-action log |
+| `Invoke-RBACBuilder.ps1` | Scope a Graph app's application permissions to a mail-enabled security group (RBAC for Applications); grow access by adding to the group |
+| `Remove-RBACBuilder.ps1` | Full teardown of an app's RBAC scoping (role assignments, scope, EXO service principal, access group) |
+| `New-SelfSignedCertificate.ps1` | Generate a .pfx/.cer keypair for Entra app certificate-based auth (CSP provider) |
 
 ### Utility (`Modules/Utility/`)
 

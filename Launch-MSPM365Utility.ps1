@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.11.7-beta'
+$script:Version    = '0.12.0-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -131,6 +131,24 @@ $script:Modules = @(
         Title       = 'User Offboarding (full pipeline)'
         Category    = 'Administration'
         Description = 'Disable, strip MFA, convert to shared, remove memberships/licenses for a paste-list. Per-user/per-action log; retains license if mailbox > 50GB.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Invoke-RBACBuilder.ps1'
+        Title       = 'RBAC Builder (scope app to mailboxes)'
+        Category    = 'Administration'
+        Description = 'Scope a Graph app''s application permissions to a mail-enabled security group of mailboxes (RBAC for Applications). Add mailboxes later by adding to the group.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/Remove-RBACBuilder.ps1'
+        Title       = 'RBAC Removal (teardown)'
+        Category    = 'Administration'
+        Description = 'Full teardown of an app''s RBAC scoping: role assignment(s), management scope, EXO service principal, and the access group. Type-to-confirm.'
+    }
+    [PSCustomObject]@{
+        File        = 'Modules/Administration/New-SelfSignedCertificate.ps1'
+        Title       = 'Self-Signed Certificate Creator'
+        Category    = 'Administration'
+        Description = 'Generate a .pfx (private) + .cer (public) keypair for Entra app certificate-based auth. CSP provider (required for EXO app-only).'
     }
     [PSCustomObject]@{
         File        = 'Modules/Utility/Install-ExchangeOnlineModule.ps1'
