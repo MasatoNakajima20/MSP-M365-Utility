@@ -13,6 +13,7 @@
         - Microsoft.Graph.Groups
         - Microsoft.Graph.Reports
         - Microsoft.Graph.Identity.SignIns
+        - Microsoft.Graph.Applications
 
     The full Microsoft.Graph umbrella module is ~150MB and pulls in 30+
     submodules. Installing only what we need is much faster and uses much
@@ -37,7 +38,8 @@ $GraphModules = @(
     'Microsoft.Graph.Users.Actions',
     'Microsoft.Graph.Groups',
     'Microsoft.Graph.Reports',
-    'Microsoft.Graph.Identity.SignIns'
+    'Microsoft.Graph.Identity.SignIns',
+    'Microsoft.Graph.Applications'
 )
 
 # Show current state

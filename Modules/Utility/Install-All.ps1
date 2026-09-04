@@ -61,7 +61,8 @@ $GraphModules = @(
     'Microsoft.Graph.Users.Actions',
     'Microsoft.Graph.Groups',
     'Microsoft.Graph.Reports',
-    'Microsoft.Graph.Identity.SignIns'
+    'Microsoft.Graph.Identity.SignIns',
+    'Microsoft.Graph.Applications'
 )
 foreach ($m in $GraphModules) {
     try {

@@ -23,7 +23,7 @@ Add-Type -AssemblyName System.Drawing
 $script:RepoOwner  = 'MasatoNakajima20'
 $script:RepoName   = 'MSP-M365-Utility'
 $script:Branch     = 'main'
-$script:Version    = '0.12.0-beta'
+$script:Version    = '0.12.1-beta'
 $script:BaseRawUrl = "https://raw.githubusercontent.com/$script:RepoOwner/$script:RepoName/$script:Branch"
 $script:WorkDir    = Join-Path $env:TEMP 'MSPM365Utility'   # module cache (internal)
 $script:ResultsDir = 'C:\MSP-M365-Utility'                  # where reporting modules drop CSVs
@@ -160,7 +160,7 @@ $script:Modules = @(
         File        = 'Modules/Utility/Install-MicrosoftGraphModule.ps1'
         Title       = 'Install Microsoft Graph Modules'
         Category    = 'Utility'
-        Description = 'Install / update the Microsoft.Graph submodules used by these scripts (Users, Users.Actions, Groups, Reports, Identity.SignIns).'
+        Description = 'Install / update the Microsoft.Graph submodules used by these scripts (Users, Users.Actions, Groups, Reports, Identity.SignIns, Applications).'
     }
     [PSCustomObject]@{
         File        = 'Modules/Utility/Install-PowerShell7.ps1'
@@ -286,7 +286,7 @@ function Get-RequiredPrereqStatus {
     })
 
     # MS Graph - require all submodules we actually use across the modules
-    $graphMods = @('Microsoft.Graph.Users','Microsoft.Graph.Users.Actions','Microsoft.Graph.Groups','Microsoft.Graph.Reports','Microsoft.Graph.Identity.SignIns')
+    $graphMods = @('Microsoft.Graph.Users','Microsoft.Graph.Users.Actions','Microsoft.Graph.Groups','Microsoft.Graph.Reports','Microsoft.Graph.Identity.SignIns','Microsoft.Graph.Applications')
     $missingGraph = @($graphMods | Where-Object { -not (Get-LatestModuleVersion -Name $_) })
     $result.Add([PSCustomObject]@{
         Name   = 'MS Graph'
