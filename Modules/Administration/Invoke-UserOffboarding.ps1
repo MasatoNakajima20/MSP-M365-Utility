@@ -17,6 +17,7 @@
         6a. (Optional, prompted per account) Set forwarding to a given address
         6b. (Optional, prompted per account) Grant FullAccess + SendAs to
             one or more delegates on the mailbox
+        6c. Hide the mailbox from the Global Address List (always on)
         7. Remove group memberships (DL, Mail-Enabled Security, M365, Security)
            and the user's access to shared mailboxes (FullAccess + SendAs)
         8. Check mailbox size:
@@ -433,6 +434,14 @@ foreach ($Upn in $Users) {
         } else {
             Add-Result $Upn $Display 'Add Mailbox Delegates' 'Failed' ("Failed: " + ($delFail -join '; '))
         }
+    }
+
+    # 6c) Hide the mailbox from the Global Address List (always on for offboarding)
+    try {
+        Set-Mailbox -Identity $Upn -HiddenFromAddressListsEnabled $true -ErrorAction Stop
+        Add-Result $Upn $Display 'Hide from GAL' 'Success' ''
+    } catch {
+        Add-Result $Upn $Display 'Hide from GAL' 'Failed' $_.Exception.Message
     }
 
     # 7a) Remove group memberships

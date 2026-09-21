@@ -4,23 +4,27 @@ Living status log for the MSP M365 Utility. Update after every meaningful change
 
 - **Repo:** https://github.com/MasatoNakajima20/MSP-M365-Utility (public)
 - **Local path:** `C:\Claude Projects\MSP 365 Reporting Tool`
-- **Current tagged release:** `0.12.1-beta`
-- **Launcher `$script:Version`:** `0.12.1-beta`
-- **Last updated:** 2026-09-04
+- **Current tagged release:** `0.13.0-beta`
+- **Launcher `$script:Version`:** `0.13.0-beta`
+- **Last updated:** 2026-09-21
 
 ---
 
 ## Versioning rule (standing)
 
-Applied on every push:
+As of 0.13.0-beta this project follows the **CLAUDE.md scheme** (not the older
+patch/minor-or-500-lines rule):
 
-- **Patch (0.0.x)** — a fix or small adjustment.
-- **Minor (0.x.0)** — a new module, or a change set over 500 lines.
-- **Major (x.0.0)** — not yet defined; ask before bumping.
-- If a push contains both a fix and a new module, the **minor** bump wins.
-- After each push: compute the next version, set `$script:Version` in the
-  launcher, then `git tag -a <ver> -m <ver>; git push origin <ver>`.
+- **Patch (0.0.x)** — bugfix / patch only.
+- **Minor (0.x.0)** — any new, updated, or removed function.
+- **Major (x.0.0)** — breaking/backward-incompatible change or major overhaul.
 - Beta suffix stays until told otherwise.
+
+Git workflow (project-specific override, authorized 2026-09-21): CLAUDE.md
+normally forbids pushing to main and requires a `v<version>` branch + PR, **but
+for this repo the operator has directed committing and pushing directly to
+`main`**. After each push: set `$script:Version`, append a CHANGELOG entry,
+`git tag -a <ver> -m <ver>; git push origin <ver>`.
 
 ---
 
