@@ -4,9 +4,9 @@ Living status log for the MSP M365 Utility. Update after every meaningful change
 
 - **Repo:** https://github.com/MasatoNakajima20/MSP-M365-Utility (public)
 - **Local path:** `C:\Claude Projects\MSP 365 Reporting Tool`
-- **Current tagged release:** `0.13.0-beta`
-- **Launcher `$script:Version`:** `0.13.0-beta`
-- **Last updated:** 2026-09-21
+- **Current release:** `0.14.0-beta`
+- **Launcher `$script:Version`:** `0.14.0-beta`
+- **Last updated:** 2026-09-25
 
 ---
 
@@ -20,11 +20,15 @@ patch/minor-or-500-lines rule):
 - **Major (x.0.0)** — breaking/backward-incompatible change or major overhaul.
 - Beta suffix stays until told otherwise.
 
-Git workflow (project-specific override, authorized 2026-09-21): CLAUDE.md
-normally forbids pushing to main and requires a `v<version>` branch + PR, **but
-for this repo the operator has directed committing and pushing directly to
-`main`**. After each push: set `$script:Version`, append a CHANGELOG entry,
-`git tag -a <ver> -m <ver>; git push origin <ver>`.
+Git workflow (updated 2026-09-25): push to a branch named after the version
+number **without** a `v` prefix (e.g. `0.14.0`), one branch per version, as
+directed by the operator. **No git tags** - the operator asked to stop tagging
+releases (2026-09-25). Never add a Claude co-author line. Ask for the commit
+message before every commit. On each version: set `$script:Version`, append a
+CHANGELOG entry, and update this file.
+
+Earlier history: 0.1.0-beta .. 0.13.0-beta were pushed directly to `main` and
+tagged; that direct-to-main + tag workflow was retired at 0.14.0-beta.
 
 ---
 
@@ -48,7 +52,8 @@ for this repo the operator has directed committing and pushing directly to
 - `Get-TenantMailboxes` — mailbox inventory; type, enabled, licensed, LastSignIn,
   Stale (>90 days).
 - `Get-TenantUserDetails` — user details with scope prompt (Members/All), incl.
-  City/State/Country/phones and AccountStatus.
+  City/State/Country/phones, AccountStatus, Licenses (friendly SKU names) and
+  Roles (directory roles).
 - `Get-TenantGroupMembership` — all group types and members.
 - `Get-TenantMFAStatus` — MFA status + method priority for licensed users.
 - `Get-TenantCalendarAccess` — delegated calendar perms, classified by mailbox type.
