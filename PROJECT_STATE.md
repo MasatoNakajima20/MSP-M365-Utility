@@ -4,9 +4,9 @@ Living status log for the MSP M365 Utility. Update after every meaningful change
 
 - **Repo:** https://github.com/MasatoNakajima20/MSP-M365-Utility (public)
 - **Local path:** `C:\Claude Projects\MSP 365 Reporting Tool`
-- **Current release:** `0.14.0-beta`
-- **Launcher `$script:Version`:** `0.14.0-beta`
-- **Last updated:** 2026-09-25
+- **Current release:** `0.15.0-beta`
+- **Launcher `$script:Version`:** `0.15.0-beta`
+- **Last updated:** 2026-10-06
 
 ---
 
@@ -85,6 +85,44 @@ launcher catalog and appear in the GUI.
 ---
 
 ## In Progress / Open items
+
+### Invoke-UserOffboarding hardening (started 2026-09-30, from Invoke-UserOffboarding-FixPlan.md)
+Scope: repo module only (`Modules/Administration/Invoke-UserOffboarding.ps1`).
+Log -> `C:\Logging\MSP-M365-Utility\`; CSV stays in `C:\MSP-M365-Utility\`
+(launcher View Results unaffected).
+Status: code complete 2026-09-30, parses clean, ASCII-only. NOT yet run
+against a live tenant - needs the section 5 testing checklist before it is
+trusted in production.
+- [x] 2.1 CRITICAL - licenses now removed only when safe: no mailbox (safe),
+  or confirmed SharedMailbox (verified via RecipientTypeDetails) with a known
+  size <= cap. Conversion-failed/unverified, "size unknown", and >50 GB all
+  SKIP removal and flag RETAINED. "Already shared" treated as success.
+- [x] 2.2 HIGH - empty catches removed: SendAs lookup, FullAccess index build,
+  SKU map, and mailbox-stats failures are now recorded (WARN / Partial /
+  Failed) instead of silently passing as Success.
+- [x] 2.3 HIGH - `-BypassSecurityGroupManagerCheck` added to
+  `Remove-DistributionGroupMember`.
+- [x] 2.4 MEDIUM - shared-mailbox FullAccess index (`$FullAccessIndex`) built
+  once before the loop; per-user removal is now a hashtable lookup. NOTE: the
+  index keys on the stored grantee string (UPN); if a grant is stored under a
+  non-UPN identity the lookup could miss it - watch for this during testing.
+- [x] 2.6 LOW - summary shows Submitted / Processed / Skipped / Not Found.
+- [x] `Write-Log` added (INFO/WARN/ERROR, `yyyy-MM-dd HH:mm:ss`, console+file,
+  `-NoConsole` for file-only rows); log ->
+  `C:\Logging\MSP-M365-Utility\COMPUTER_yyyyMMdd_HHmmss_UserOffboarding.log`;
+  CSV renamed to `COMPUTER_yyyyMMdd_HHmmss_UserOffboarding_<Tenant>.csv`
+  (still in `C:\MSP-M365-Utility\`).
+- [x] Section dividers normalized; description comments added above Write-Log,
+  Add-Result, ConvertTo-GB.
+- [x] (2026-10-06 amendment) Name-logging: the 'Remove Group Memberships' and
+  'Remove Shared Mailbox Access' rows now list the actual group names (tagged
+  DL / Mail-Enabled Security / M365 / Security) and shared-mailbox addresses
+  (SendAs + FullAccess), comma-separated, in the results CSV Detail column.
+  Add-Result gained a `-KeepDetail` switch so these two rows keep their Detail
+  on Success (the blank-on-Success convention still holds everywhere else).
+Not in this pass: 2.5 (#Requires vs install block), 2.7 (redundant revoke),
+2.8 (owned groups / forwarding default / prompt ordering).
+
 
 - [x] ~~Offboarding not yet run against a live tenant.~~ **Validated** against a
   live tenant on 2026-09-04 (used by the operator, worked as intended).

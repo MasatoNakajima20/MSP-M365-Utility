@@ -13,19 +13,22 @@
         3. Revoke sign-in sessions
         4. Remove all MFA / authentication methods (password excluded)
         5. Revoke tokens (same Graph revoke call as step 3)
-        6. Convert the mailbox to a Shared Mailbox
+        6. Convert the mailbox to a Shared Mailbox (verified afterwards)
         6a. (Optional, prompted per account) Set forwarding to a given address
         6b. (Optional, prompted per account) Grant FullAccess + SendAs to
             one or more delegates on the mailbox
         6c. Hide the mailbox from the Global Address List (always on)
         7. Remove group memberships (DL, Mail-Enabled Security, M365, Security)
            and the user's access to shared mailboxes (FullAccess + SendAs)
-        8. Check mailbox size:
-              > 50 GB  -> license removal is SKIPPED and flagged (an unlicensed
-                          shared mailbox may not exceed 50 GB)
-              <= 50 GB -> remove all assigned licenses (one SKU at a time, so a
-                          group-assigned SKU that can't be removed is logged as
-                          failed without blocking the direct ones)
+        8. Check mailbox size (50 GB cap)
+        9. Remove licenses - ONLY when it is safe to do so:
+              - no mailbox exists                      -> remove (safe)
+              - mailbox converted and <= 50 GB         -> remove
+              - mailbox conversion failed / unverified -> SKIP + flag (retained)
+              - mailbox size lookup failed             -> SKIP + flag (retained)
+              - mailbox > 50 GB                         -> SKIP + flag (retained)
+           Licenses are removed one SKU at a time, so a group-assigned SKU that
+           cannot be removed is logged as failed without blocking the direct ones.
 
     Connects Microsoft Graph FIRST, then Exchange Online, to avoid the MSAL
     "WithLogging" assembly conflict.
@@ -36,9 +39,10 @@
 
     Every action is logged. Successful actions are shown with a blank Detail;
     the Detail is only populated for actions that need attention (Partial /
-    Info / Skipped / Failed). The results CSV is written to C:\MSP-M365-Utility\
-    and a summary is printed at the end (including the >50 GB retained-license
-    flags).
+    Info / Skipped / Failed). A timestamped run log is written to
+    C:\Logging\MSP-M365-Utility\ and the results CSV is written to
+    C:\MSP-M365-Utility\. A summary is printed at the end (including the
+    license-retained flags).
 
 .NOTES
     Required Modules:
@@ -51,18 +55,56 @@
         - Microsoft Graph : User.ReadWrite.All, UserAuthenticationMethod.ReadWrite.All,
                             Group.ReadWrite.All, GroupMember.ReadWrite.All, Directory.Read.All
         - Exchange Online : Recipient Management (convert to shared, permissions)
+
+    Output:
+        - Run log : C:\Logging\MSP-M365-Utility\COMPUTER_yyyyMMdd_HHmmss_UserOffboarding.log
+        - Results : C:\MSP-M365-Utility\COMPUTER_yyyyMMdd_HHmmss_UserOffboarding_<Tenant>.csv
 #>
 
-# ----------------------------------------------------------
-#  CONFIGURATION
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# CONFIGURATION
+# ---------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
 $Host.UI.RawUI.WindowTitle = "M365 User Offboarding"
 $SizeCapGB = 50   # unlicensed shared mailbox limit
+$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 
-# ----------------------------------------------------------
-#  BANNER
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# LOGGING SETUP
+# ---------------------------------------------------------------------------
+# Run log goes to C:\Logging\<Project>\ per the standard; the results CSV stays
+# in C:\MSP-M365-Utility\ so the launcher's "View Results" button still finds it.
+$LogRoot = 'C:\Logging\MSP-M365-Utility'
+if (-not (Test-Path $LogRoot)) {
+    try {
+        New-Item -ItemType Directory -Path $LogRoot -Force -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Host "  [ERROR] Could not create log folder '$LogRoot': $_" -ForegroundColor Red
+    }
+}
+$LogFile = "${env:COMPUTERNAME}_${Timestamp}_UserOffboarding.log"
+$LogPath = Join-Path $LogRoot $LogFile
+
+# Write-Log - writes a timestamped INFO/WARN/ERROR entry to the log file and
+# (unless -NoConsole) to the console in a level-appropriate colour.
+function Write-Log {
+    param(
+        [string]$Message,
+        [ValidateSet('INFO','WARN','ERROR')][string]$Level = 'INFO',
+        [switch]$NoConsole
+    )
+    $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    $entry = "$stamp [$Level] $Message"
+    try { Add-Content -Path $LogPath -Value $entry -Encoding UTF8 -ErrorAction Stop } catch { }
+    if (-not $NoConsole) {
+        $col = switch ($Level) { 'WARN' { 'Yellow' } 'ERROR' { 'Red' } default { 'Gray' } }
+        Write-Host "  $entry" -ForegroundColor $col
+    }
+}
+
+# ---------------------------------------------------------------------------
+# BANNER
+# ---------------------------------------------------------------------------
 Clear-Host
 Write-Host ""
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
@@ -71,9 +113,9 @@ Write-Host "  |        Microsoft Graph  *  Exchange Online       |" -ForegroundC
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
 
-# ----------------------------------------------------------
-#  INPUT - TENANT CODE
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# INPUT - TENANT CODE
+# ---------------------------------------------------------------------------
 do {
     $TenantCode = (Read-Host "  Enter the three-letter Tenant Code (e.g. ABC)").Trim().ToUpper()
     if ($TenantCode -notmatch '^[A-Z]{3}$') {
@@ -81,9 +123,9 @@ do {
     }
 } while ($TenantCode -notmatch '^[A-Z]{3}$')
 
-# ----------------------------------------------------------
-#  OUTPUT PATH
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# OUTPUT PATH (results CSV)
+# ---------------------------------------------------------------------------
 $OutputRoot = 'C:\MSP-M365-Utility'
 if (-not (Test-Path $OutputRoot)) {
     try {
@@ -93,13 +135,14 @@ if (-not (Test-Path $OutputRoot)) {
         Read-Host "`n  Press Enter to exit"; exit 1
     }
 }
-$Timestamp  = Get-Date -Format "yyyyMMdd_HHmmss"
-$OutputFile = "UserOffboarding_${TenantCode}_${Timestamp}.csv"
+$OutputFile = "${env:COMPUTERNAME}_${Timestamp}_UserOffboarding_${TenantCode}.csv"
 $OutputPath = Join-Path $OutputRoot $OutputFile
 
-# ----------------------------------------------------------
-#  PASTE-LIST INPUT
-# ----------------------------------------------------------
+Write-Log "User Offboarding run started. Tenant: $TenantCode. Log: $LogPath" 'INFO' -NoConsole
+
+# ---------------------------------------------------------------------------
+# PASTE-LIST INPUT
+# ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "  Paste user emails to OFFBOARD (one per line)." -ForegroundColor Yellow
 Write-Host "  When finished, press ENTER on a blank line." -ForegroundColor Yellow
@@ -112,9 +155,9 @@ while ($true) {
     $RawLines += $line
 }
 
-# ----------------------------------------------------------
-#  PARSE & VALIDATE
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# PARSE AND VALIDATE
+# ---------------------------------------------------------------------------
 $EmailRegex = '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 $Users      = [System.Collections.Generic.List[string]]::new()
 $Malformed  = [System.Collections.Generic.List[string]]::new()
@@ -138,12 +181,13 @@ if ($Users.Count -eq 0) {
     Write-Host ""
     Write-Host "  [!] No valid emails found. Nothing to do." -ForegroundColor Yellow
     if ($Malformed.Count -gt 0) { $Malformed | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray } }
+    Write-Log "No valid emails supplied. Exiting." 'WARN' -NoConsole
     Read-Host "`n  Press Enter to exit"; exit 0
 }
 
-# ----------------------------------------------------------
-#  PREVIEW + STRONG CONFIRMATION (type the count)
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# PREVIEW AND STRONG CONFIRMATION (type the count)
+# ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Red
 Write-Host "  |  WARNING - THIS PERMANENTLY OFFBOARDS ACCOUNTS   |" -ForegroundColor Red
@@ -153,7 +197,7 @@ Write-Host "    - Disabled, manager removed, sessions/tokens revoked" -Foregroun
 Write-Host "    - All MFA methods removed" -ForegroundColor DarkGray
 Write-Host "    - Converted to a Shared Mailbox" -ForegroundColor DarkGray
 Write-Host "    - Removed from all groups and shared-mailbox access" -ForegroundColor DarkGray
-Write-Host "    - License removed (unless mailbox > $SizeCapGB GB)" -ForegroundColor DarkGray
+Write-Host "    - License removed (unless mailbox > $SizeCapGB GB or unsafe)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "  Tenant Code : $TenantCode" -ForegroundColor Cyan
 Write-Host "  Accounts    : $($Users.Count)" -ForegroundColor Cyan
@@ -169,14 +213,15 @@ Write-Host ""
 $typed = Read-Host "  To PROCEED, type the number of accounts ($($Users.Count)). Anything else cancels"
 if ($typed.Trim() -ne "$($Users.Count)") {
     Write-Host "  Cancelled." -ForegroundColor Red
+    Write-Log "Run cancelled at the count-confirmation gate." 'WARN' -NoConsole
     Read-Host "`n  Press Enter to exit"; exit 0
 }
 
 $ScriptStart = [System.Diagnostics.Stopwatch]::StartNew()
 
-# ----------------------------------------------------------
-#  MODULE CHECK + CONNECT (Graph first, then EXO)
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# MODULE CHECK AND CONNECT (Graph first, then EXO)
+# ---------------------------------------------------------------------------
 Write-Host ""
 Write-Host "  [1/3] Checking required modules..." -ForegroundColor Cyan
 $RequiredModules = @(
@@ -188,22 +233,22 @@ $RequiredModules = @(
 )
 foreach ($Mod in $RequiredModules) {
     if (-not (Get-Module -ListAvailable -Name $Mod)) {
-        Write-Host "  [!] Module '$Mod' not found. Installing..." -ForegroundColor Yellow
+        Write-Log "Module '$Mod' not found. Installing..." 'WARN'
         Install-Module -Name $Mod -Scope CurrentUser -Force -AllowClobber
     }
     Import-Module -Name $Mod -ErrorAction Stop
-    Write-Host "  [OK] $Mod loaded." -ForegroundColor Green
+    Write-Log "Module loaded: $Mod" 'INFO'
 }
 
 Write-Host ""
 Write-Host "  [2/3] Connecting (Graph first, then Exchange Online)..." -ForegroundColor Cyan
 try {
     Connect-MgGraph -Scopes "User.ReadWrite.All","UserAuthenticationMethod.ReadWrite.All","Group.ReadWrite.All","GroupMember.ReadWrite.All","Directory.Read.All" -NoWelcome -ErrorAction Stop
-    Write-Host "  [OK] Microsoft Graph connected." -ForegroundColor Green
+    Write-Log "Microsoft Graph connected." 'INFO'
     Connect-ExchangeOnline -ShowBanner:$false -ErrorAction Stop
-    Write-Host "  [OK] Exchange Online connected." -ForegroundColor Green
+    Write-Log "Exchange Online connected." 'INFO'
 } catch {
-    Write-Host "  [ERROR] Failed to connect: $_" -ForegroundColor Red
+    Write-Log "Failed to connect: $($_.Exception.Message)" 'ERROR'
     Read-Host "`n  Press Enter to exit"; exit 1
 }
 
@@ -212,18 +257,63 @@ $SkuMap = @{}
 try {
     $skuResp = Invoke-MgGraphRequest -Method GET -Uri 'v1.0/subscribedSkus' -ErrorAction Stop
     foreach ($s in $skuResp.value) { $SkuMap[$s.skuId] = $s.skuPartNumber }
-} catch { }
+} catch {
+    Write-Log "Could not build SKU name map (license names will show GUIDs): $($_.Exception.Message)" 'WARN'
+}
 
-# ----------------------------------------------------------
-#  RESULT LOGGING HELPERS
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# FULLACCESS INDEX (built once, not per user)
+# ---------------------------------------------------------------------------
+# Enumerate every shared mailbox and its non-inherited FullAccess grantees a
+# single time, keyed by grantee (lower-case). Each user's shared-mailbox
+# FullAccess removals are then a hashtable lookup instead of an O(users x
+# mailboxes) scan. $FullAccessIndex stays $null if the build fails, so step 7b
+# can report the FullAccess check as unavailable instead of a false Success.
+Write-Host ""
+Write-Host "  [3/3] Building shared-mailbox FullAccess index..." -ForegroundColor Cyan
+$FullAccessIndex = @{}
+try {
+    $allShared = @(Get-Mailbox -RecipientTypeDetails SharedMailbox -ResultSize Unlimited -ErrorAction Stop)
+    foreach ($sm in $allShared) {
+        try {
+            $perms = @(Get-MailboxPermission -Identity $sm.Identity -ErrorAction Stop |
+                       Where-Object { $_.AccessRights -contains 'FullAccess' -and -not $_.IsInherited -and "$($_.User)" -notlike 'NT AUTHORITY\*' })
+            # Store the primary SMTP (fallback to Identity) - valid for removal and
+            # readable when logged as the mailbox the user is removed from.
+            $mbxLabel = if ($sm.PrimarySmtpAddress) { "$($sm.PrimarySmtpAddress)" } else { "$($sm.Identity)" }
+            foreach ($perm in $perms) {
+                $userKey = "$($perm.User)".ToLower()
+                if (-not $FullAccessIndex.ContainsKey($userKey)) {
+                    $FullAccessIndex[$userKey] = [System.Collections.Generic.List[string]]::new()
+                }
+                [void]$FullAccessIndex[$userKey].Add($mbxLabel)
+            }
+        } catch {
+            Write-Log "FullAccess index: could not read permissions on $($sm.PrimarySmtpAddress): $($_.Exception.Message)" 'WARN' -NoConsole
+        }
+    }
+    Write-Log "FullAccess index built over $($allShared.Count) shared mailbox(es)." 'INFO'
+} catch {
+    $FullAccessIndex = $null
+    Write-Log "FullAccess index build failed - shared-mailbox FullAccess removal will be flagged per user: $($_.Exception.Message)" 'WARN'
+}
+
+# ---------------------------------------------------------------------------
+# RESULT LOGGING HELPERS
+# ---------------------------------------------------------------------------
 $Results = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+# Add-Result - records one per-user action row, colours it on the console, and
+# mirrors it to the run log. Success rows carry a blank Detail by design, unless
+# -KeepDetail is set (used where the Detail itself is the record, e.g. the list
+# of groups / shared mailboxes a user was removed from).
 function Add-Result {
-    param([string]$Upn, [string]$Display, [string]$Action, [string]$Status, [string]$Detail)
+    param([string]$Upn, [string]$Display, [string]$Action, [string]$Status, [string]$Detail, [switch]$KeepDetail)
 
     # Success is shown but carries no note - the Detail is reserved for actions
-    # that need attention (Partial / Info / Skipped / Failed).
-    if ($Status -eq 'Success') { $Detail = '' }
+    # that need attention (Partial / Info / Skipped / Failed). -KeepDetail opts a
+    # row out of that blanking so its name list survives on a Success.
+    if ($Status -eq 'Success' -and -not $KeepDetail) { $Detail = '' }
 
     $Results.Add([PSCustomObject]@{
         UserPrincipalName = $Upn
@@ -240,8 +330,14 @@ function Add-Result {
         default   { 'Red' }
     }
     Write-Host ("      {0,-26} {1,-9} {2}" -f $Action, $Status, $Detail) -ForegroundColor $col
+
+    # Mirror to the run log (file only - the console line above is enough).
+    $logLevel = switch ($Status) { 'Failed' { 'ERROR' } 'Partial' { 'WARN' } default { 'INFO' } }
+    Write-Log ("{0} | {1} | {2} | {3}" -f $Upn, $Action, $Status, $Detail) $logLevel -NoConsole
 }
 
+# ConvertTo-GB - normalises an Exchange size value (string or typed) to GB as a
+# number, returning $null for Unlimited or unparseable values.
 function ConvertTo-GB {
     param($Size)
     if ($null -eq $Size) { return $null }
@@ -261,14 +357,17 @@ function ConvertTo-GB {
     return $null
 }
 
-# ----------------------------------------------------------
-#  PROCESS EACH USER
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# PROCESS EACH USER
+# ---------------------------------------------------------------------------
 Write-Host ""
-Write-Host "  [3/3] Offboarding users..." -ForegroundColor Cyan
+Write-Host "  Offboarding users..." -ForegroundColor Cyan
 
-$Total   = $Users.Count
-$Counter = 0
+$Total          = $Users.Count
+$Counter        = 0
+$ProcessedCount = 0
+$SkippedCount   = 0
+$NotFoundCount  = 0
 
 foreach ($Upn in $Users) {
     $Counter++
@@ -283,6 +382,7 @@ foreach ($Upn in $Users) {
     # Per-account confirmation - stricter than the batch gate; skip on anything but Y
     $goUser = Read-Host "      Offboard THIS account? (Y/N)"
     if ($goUser -notin @('Y','y')) {
+        $SkippedCount++
         Add-Result $Upn '' 'Offboarding' 'Skipped' 'Skipped by operator at per-account prompt'
         continue
     }
@@ -324,11 +424,13 @@ foreach ($Upn in $Users) {
     try {
         $u = Get-MgUser -UserId $Upn -Property "Id,DisplayName,UserPrincipalName,AccountEnabled,AssignedLicenses" -ErrorAction Stop
     } catch {
+        $NotFoundCount++
         Add-Result $Upn '' 'Resolve User' 'Failed' "User not found in Graph: $($_.Exception.Message)"
         continue
     }
     $Id      = $u.Id
     $Display = $u.DisplayName
+    $ProcessedCount++
 
     # 1) Disable account
     try {
@@ -392,13 +494,41 @@ foreach ($Upn in $Users) {
     } catch { Add-Result $Upn $Display 'Revoke Tokens' 'Failed' $_.Exception.Message }
 
     # 6) Convert to Shared Mailbox
-    $hasMailbox = $false
+    # $MailboxType is the mailbox's RecipientTypeDetails ($null = no mailbox at
+    # all). $ConvertedToShared is $true only once the mailbox is confirmed to be
+    # a SharedMailbox. These two drive the license-safety decision in step 9.
+    $MailboxType       = $null
+    $ConvertedToShared = $false
     try {
-        Set-Mailbox -Identity $Upn -Type Shared -ErrorAction Stop
-        $hasMailbox = $true
-        Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox type = Shared'
+        $mbx = Get-Mailbox -Identity $Upn -ErrorAction Stop
+        $MailboxType = "$($mbx.RecipientTypeDetails)"
+
+        if ($MailboxType -eq 'SharedMailbox') {
+            # Already shared - treat as success, no conversion needed.
+            $ConvertedToShared = $true
+            Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox already Shared'
+        } else {
+            Set-Mailbox -Identity $Upn -Type Shared -ErrorAction Stop
+            # Verify the conversion actually took effect before trusting it.
+            $verify = Get-Mailbox -Identity $Upn -ErrorAction Stop
+            $MailboxType = "$($verify.RecipientTypeDetails)"
+            if ($MailboxType -eq 'SharedMailbox') {
+                $ConvertedToShared = $true
+                Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox type = Shared'
+            } else {
+                Add-Result $Upn $Display 'Convert to Shared' 'Failed' "Type still '$MailboxType' after conversion - license removal will be SKIPPED (RETAINED for safety)"
+            }
+        }
     } catch {
-        Add-Result $Upn $Display 'Convert to Shared' 'Failed' $_.Exception.Message
+        # Distinguish "no mailbox" (safe to remove licenses) from a real failure.
+        if ("$($_.Exception.Message)" -match "couldn't be found|not found|ManagementObjectNotFound") {
+            $MailboxType = $null
+            Add-Result $Upn $Display 'Convert to Shared' 'Skipped' 'No mailbox found for this user'
+        } else {
+            # Mailbox likely exists but conversion/lookup failed - do NOT remove licenses.
+            if (-not $MailboxType) { $MailboxType = 'Unknown' }
+            Add-Result $Upn $Display 'Convert to Shared' 'Failed' "$($_.Exception.Message) - license removal will be SKIPPED (RETAINED for safety)"
+        }
     }
 
     # 6a) Set forwarding (only if requested at the per-account prompt)
@@ -437,15 +567,19 @@ foreach ($Upn in $Users) {
     }
 
     # 6c) Hide the mailbox from the Global Address List (always on for offboarding)
-    try {
-        Set-Mailbox -Identity $Upn -HiddenFromAddressListsEnabled $true -ErrorAction Stop
-        Add-Result $Upn $Display 'Hide from GAL' 'Success' ''
-    } catch {
-        Add-Result $Upn $Display 'Hide from GAL' 'Failed' $_.Exception.Message
+    if ($MailboxType -and $MailboxType -ne 'Unknown') {
+        try {
+            Set-Mailbox -Identity $Upn -HiddenFromAddressListsEnabled $true -ErrorAction Stop
+            Add-Result $Upn $Display 'Hide from GAL' 'Success' ''
+        } catch {
+            Add-Result $Upn $Display 'Hide from GAL' 'Failed' $_.Exception.Message
+        }
+    } else {
+        Add-Result $Upn $Display 'Hide from GAL' 'Skipped' 'No accessible mailbox'
     }
 
     # 7a) Remove group memberships
-    $grpRemoved = 0; $grpFailed = @(); $grpDynamic = @()
+    $grpRemoved = 0; $grpFailed = @(); $grpDynamic = @(); $grpRemovedNames = @()
     try {
         $memberships = @(Get-MgUserMemberOf -UserId $Id -All -ErrorAction Stop)
         foreach ($mo in $memberships) {
@@ -463,76 +597,118 @@ foreach ($Upn in $Users) {
             $isUnified = $gTypes -contains 'Unified'
             $useExo    = ($mailEn -and -not $isUnified)   # DL or Mail-Enabled Security -> EXO
 
+            # Tag each group by type so the logged name shows what it was.
+            $typeLabel = if ($isUnified) { 'M365' }
+                         elseif ($mailEn -and $secEn) { 'Mail-Enabled Security' }
+                         elseif ($mailEn) { 'DL' }
+                         elseif ($secEn) { 'Security' }
+                         else { 'Group' }
+
             try {
                 if ($useExo) {
                     $ident = if ($gMail) { $gMail } else { $gName }
-                    Remove-DistributionGroupMember -Identity $ident -Member $Upn -Confirm:$false -ErrorAction Stop
+                    # -BypassSecurityGroupManagerCheck: mail-enabled security groups
+                    # otherwise reject removal unless the operator owns the group.
+                    Remove-DistributionGroupMember -Identity $ident -Member $Upn -BypassSecurityGroupManagerCheck -Confirm:$false -ErrorAction Stop
                 } else {
                     Remove-MgGroupMemberByRef -GroupId $mo.Id -DirectoryObjectId $Id -ErrorAction Stop
                 }
                 $grpRemoved++
+                $grpRemovedNames += "$gName [$typeLabel]"
             } catch { $grpFailed += "$gName ($($_.Exception.Message))" }
         }
-        $detailParts = @("Removed $grpRemoved")
+        $detailParts = @()
+        if ($grpRemovedNames.Count -gt 0) { $detailParts += ("Removed: " + ($grpRemovedNames -join ', ')) } else { $detailParts += "Removed: 0" }
         if ($grpDynamic.Count -gt 0) { $detailParts += "Dynamic (skipped): $($grpDynamic -join ', ')" }
         if ($grpFailed.Count  -gt 0) { $detailParts += "Failed: $($grpFailed -join '; ')" }
         $grpStatus = if ($grpFailed.Count -gt 0) { if ($grpRemoved -gt 0) { 'Partial' } else { 'Failed' } } else { 'Success' }
-        Add-Result $Upn $Display 'Remove Group Memberships' $grpStatus ($detailParts -join ' | ')
+        Add-Result $Upn $Display 'Remove Group Memberships' $grpStatus ($detailParts -join ' | ') -KeepDetail
     } catch {
         Add-Result $Upn $Display 'Remove Group Memberships' 'Failed' $_.Exception.Message
     }
 
-    # 7b) Remove shared-mailbox access (SendAs org-wide; FullAccess on shared mailboxes)
-    $saRemoved = 0; $faRemoved = 0; $accFailed = @()
-    # SendAs
+    # 7b) Remove shared-mailbox access (SendAs org-wide; FullAccess via the index)
+    $saRemovedNames = @(); $faRemovedNames = @(); $accFailed = @()
+    # SendAs - a lookup failure here is recorded, not swallowed.
     try {
         $sendAs = @(Get-RecipientPermission -Trustee $Upn -ResultSize Unlimited -ErrorAction Stop |
                     Where-Object { $_.AccessRights -contains 'SendAs' })
         foreach ($r in $sendAs) {
             try {
                 Remove-RecipientPermission -Identity $r.Identity -Trustee $Upn -AccessRights SendAs -Confirm:$false -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
-                $saRemoved++
+                $saRemovedNames += "$($r.Identity)"
             } catch { $accFailed += "SendAs:$($r.Identity)" }
         }
-    } catch { }
-    # FullAccess on shared mailboxes only
-    try {
-        $sharedMbx = @(Get-Mailbox -RecipientTypeDetails SharedMailbox -ResultSize Unlimited -ErrorAction Stop)
-        foreach ($sm in $sharedMbx) {
+    } catch {
+        $accFailed += "SendAs-lookup ($($_.Exception.Message))"
+    }
+    # FullAccess on shared mailboxes - resolved from the pre-built index.
+    if ($null -eq $FullAccessIndex) {
+        $accFailed += 'FullAccess:index-unavailable'
+    } else {
+        $faTargets = if ($FullAccessIndex.ContainsKey($Upn.ToLower())) { $FullAccessIndex[$Upn.ToLower()] } else { @() }
+        foreach ($mbxId in $faTargets) {
             try {
-                $fa = Get-MailboxPermission -Identity $sm.Identity -User $Upn -ErrorAction SilentlyContinue |
-                      Where-Object { $_.AccessRights -contains 'FullAccess' -and -not $_.IsInherited }
-                if ($fa) {
-                    Remove-MailboxPermission -Identity $sm.Identity -User $Upn -AccessRights FullAccess -Confirm:$false -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
-                    $faRemoved++
-                }
-            } catch { $accFailed += "FullAccess:$($sm.PrimarySmtpAddress)" }
+                Remove-MailboxPermission -Identity $mbxId -User $Upn -AccessRights FullAccess -Confirm:$false -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null
+                $faRemovedNames += "$mbxId"
+            } catch { $accFailed += "FullAccess:$mbxId" }
         }
-    } catch { }
-    $accStatus = if ($accFailed.Count -gt 0) { 'Partial' } else { 'Success' }
-    $accDetail = "SendAs removed: $saRemoved | Shared FullAccess removed: $faRemoved"
-    if ($accFailed.Count -gt 0) { $accDetail += " | Failed: $($accFailed -join ', ')" }
-    Add-Result $Upn $Display 'Remove Shared Mailbox Access' $accStatus $accDetail
+    }
+    $saRemoved = $saRemovedNames.Count
+    $faRemoved = $faRemovedNames.Count
+    $accStatus = if ($accFailed.Count -gt 0) { if (($saRemoved + $faRemoved) -gt 0) { 'Partial' } else { 'Failed' } } else { 'Success' }
+    $accParts  = @()
+    $accParts += if ($saRemovedNames.Count -gt 0) { "SendAs removed ($saRemoved): " + ($saRemovedNames -join ', ') } else { "SendAs removed: 0" }
+    $accParts += if ($faRemovedNames.Count -gt 0) { "Shared FullAccess removed ($faRemoved): " + ($faRemovedNames -join ', ') } else { "Shared FullAccess removed: 0" }
+    if ($accFailed.Count -gt 0) { $accParts += "Failed: $($accFailed -join ', ')" }
+    Add-Result $Upn $Display 'Remove Shared Mailbox Access' $accStatus ($accParts -join ' | ') -KeepDetail
 
     # 8) Mailbox size check
-    $SizeGB = $null
-    if ($hasMailbox) {
+    # $SizeKnown separates "under cap" from "could not determine size". When the
+    # size of an existing mailbox is unknown, license removal is skipped (safety).
+    $SizeGB    = $null
+    $SizeKnown = $false
+    if ($ConvertedToShared -or ($MailboxType -and $MailboxType -ne 'Unknown')) {
         try {
             $st     = Get-MailboxStatistics -Identity $Upn -ErrorAction Stop
             $SizeGB = ConvertTo-GB $st.TotalItemSize
-        } catch { }
+            if ($null -ne $SizeGB) { $SizeKnown = $true }
+        } catch {
+            Write-Log "Mailbox size lookup failed for $Upn - license removal will be skipped: $($_.Exception.Message)" 'WARN' -NoConsole
+        }
     }
-    if ($null -ne $SizeGB) {
+    if ($SizeKnown) {
         $overCap = $SizeGB -gt $SizeCapGB
         Add-Result $Upn $Display 'Mailbox Size Check' 'Info' ("$SizeGB GB" + $(if ($overCap) { " (OVER $SizeCapGB GB)" } else { " (under $SizeCapGB GB)" }))
     } else {
         $overCap = $false
-        Add-Result $Upn $Display 'Mailbox Size Check' 'Info' 'Size unavailable (no accessible mailbox)'
+        if ($null -eq $MailboxType) {
+            Add-Result $Upn $Display 'Mailbox Size Check' 'Info' 'Size unavailable (no mailbox)'
+        } else {
+            Add-Result $Upn $Display 'Mailbox Size Check' 'Info' 'Size unavailable (lookup failed on an existing mailbox)'
+        }
     }
 
-    # 9) Remove license (unless over cap)
-    if ($overCap) {
-        Add-Result $Upn $Display 'Remove License' 'Skipped' "Mailbox $SizeGB GB > $SizeCapGB GB - license RETAINED (required for shared mailbox over $SizeCapGB GB)"
+    # 9) Remove license - only when it is safe
+    # Safe cases: no mailbox at all, OR a confirmed Shared mailbox whose size is
+    # known and <= cap. Every other case retains the license and is flagged.
+    # $removeLicense / $licenseSkipReason decide which path is taken below.
+    $removeLicense     = $false
+    $licenseSkipReason = $null
+    if ($null -eq $MailboxType) {
+        $removeLicense = $true                      # no mailbox - removal cannot orphan data
+    } elseif (-not $ConvertedToShared) {
+        $licenseSkipReason = "Mailbox conversion to Shared not confirmed - license RETAINED for safety"
+    } elseif (-not $SizeKnown) {
+        $licenseSkipReason = "Mailbox size could not be determined - license RETAINED for safety"
+    } elseif ($overCap) {
+        $licenseSkipReason = "Mailbox $SizeGB GB > $SizeCapGB GB - license RETAINED (required for shared mailbox over $SizeCapGB GB)"
+    } else {
+        $removeLicense = $true                       # confirmed shared, size known and under cap
+    }
+
+    if (-not $removeLicense) {
+        Add-Result $Upn $Display 'Remove License' 'Skipped' $licenseSkipReason
     } else {
         $lic = @($u.AssignedLicenses)
         if (-not $lic -or $lic.Count -eq 0) {
@@ -560,28 +736,27 @@ foreach ($Upn in $Users) {
 
 Write-Progress -Activity "Offboarding" -Completed
 
-# ----------------------------------------------------------
-#  EXPORT RESULTS
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# EXPORT RESULTS
+# ---------------------------------------------------------------------------
 try {
     $Results | Export-Csv -Path $OutputPath -NoTypeInformation -Encoding UTF8
     Write-Host ""
-    Write-Host "  [OK] Results CSV exported." -ForegroundColor Green
-    Write-Host "       Path: $OutputPath"     -ForegroundColor DarkGray
+    Write-Log "Results CSV exported: $OutputPath" 'INFO'
 } catch {
-    Write-Host "  [ERROR] Failed to export results: $_" -ForegroundColor Red
+    Write-Log "Failed to export results CSV: $($_.Exception.Message)" 'ERROR'
 }
 
-# ----------------------------------------------------------
-#  DISCONNECT
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# DISCONNECT
+# ---------------------------------------------------------------------------
 Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
 Disconnect-MgGraph -ErrorAction SilentlyContinue
-Write-Host "  Sessions disconnected." -ForegroundColor DarkGray
+Write-Log "Sessions disconnected." 'INFO'
 
-# ----------------------------------------------------------
-#  SUMMARY
-# ----------------------------------------------------------
+# ---------------------------------------------------------------------------
+# SUMMARY
+# ---------------------------------------------------------------------------
 $ScriptStart.Stop()
 $Elapsed = $ScriptStart.Elapsed
 $RunTime = "{0:D2}h {1:D2}m {2:D2}s {3:D3}ms" -f `
@@ -595,20 +770,28 @@ Write-Host ""
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
 Write-Host "  |                  RUN SUMMARY                    |" -ForegroundColor Cyan
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
-Write-Host ("  | Tenant Code         : {0,-27}|" -f $TenantCode)   -ForegroundColor White
-Write-Host ("  | Accounts Processed  : {0,-27}|" -f $Total)        -ForegroundColor White
-Write-Host ("  | Action Rows Logged  : {0,-27}|" -f $Results.Count)-ForegroundColor White
-Write-Host ("  | Failed Actions      : {0,-27}|" -f $FailCount)    -ForegroundColor White
-Write-Host ("  | Partial Actions     : {0,-27}|" -f $PartialCount) -ForegroundColor White
+Write-Host ("  | Tenant Code         : {0,-27}|" -f $TenantCode)     -ForegroundColor White
+Write-Host ("  | Accounts Submitted  : {0,-27}|" -f $Total)          -ForegroundColor White
+Write-Host ("  | Processed           : {0,-27}|" -f $ProcessedCount) -ForegroundColor White
+Write-Host ("  | Skipped (prompt)    : {0,-27}|" -f $SkippedCount)   -ForegroundColor White
+Write-Host ("  | Not Found           : {0,-27}|" -f $NotFoundCount)  -ForegroundColor White
+Write-Host ("  | Action Rows Logged  : {0,-27}|" -f $Results.Count)  -ForegroundColor White
+Write-Host ("  | Failed Actions      : {0,-27}|" -f $FailCount)      -ForegroundColor White
+Write-Host ("  | Partial Actions     : {0,-27}|" -f $PartialCount)   -ForegroundColor White
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
-Write-Host ("  | Total Run Time      : {0,-27}|" -f $RunTime)      -ForegroundColor Yellow
+Write-Host ("  | Total Run Time      : {0,-27}|" -f $RunTime)        -ForegroundColor Yellow
 Write-Host "  +--------------------------------------------------+" -ForegroundColor Cyan
+
+Write-Log ("Run summary - Submitted: $Total | Processed: $ProcessedCount | Skipped: $SkippedCount | NotFound: $NotFoundCount | Failed: $FailCount | Partial: $PartialCount | Retained-license: $($Retained.Count)") 'INFO' -NoConsole
 
 if ($Retained.Count -gt 0) {
     Write-Host ""
-    Write-Host "  [!] LICENSE RETAINED (mailbox over $SizeCapGB GB) - review these:" -ForegroundColor Yellow
+    Write-Host "  [!] LICENSE RETAINED (review these):" -ForegroundColor Yellow
     $Retained | ForEach-Object { Write-Host "      $($_.UserPrincipalName) - $($_.Detail)" -ForegroundColor Yellow }
 }
 
+Write-Host ""
+Write-Host "  Run log : $LogPath" -ForegroundColor DarkGray
+Write-Host "  Results : $OutputPath" -ForegroundColor DarkGray
 Write-Host ""
 Read-Host "  Press Enter to exit"
