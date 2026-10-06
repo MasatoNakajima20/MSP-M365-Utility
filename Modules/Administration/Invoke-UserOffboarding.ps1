@@ -499,35 +499,62 @@ foreach ($Upn in $Users) {
     # a SharedMailbox. These two drive the license-safety decision in step 9.
     $MailboxType       = $null
     $ConvertedToShared = $false
+
+    # Find out whether the user has a mailbox and its current type.
     try {
         $mbx = Get-Mailbox -Identity $Upn -ErrorAction Stop
         $MailboxType = "$($mbx.RecipientTypeDetails)"
-
-        if ($MailboxType -eq 'SharedMailbox') {
-            # Already shared - treat as success, no conversion needed.
-            $ConvertedToShared = $true
-            Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox already Shared'
-        } else {
-            Set-Mailbox -Identity $Upn -Type Shared -ErrorAction Stop
-            # Verify the conversion actually took effect before trusting it.
-            $verify = Get-Mailbox -Identity $Upn -ErrorAction Stop
-            $MailboxType = "$($verify.RecipientTypeDetails)"
-            if ($MailboxType -eq 'SharedMailbox') {
-                $ConvertedToShared = $true
-                Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox type = Shared'
-            } else {
-                Add-Result $Upn $Display 'Convert to Shared' 'Failed' "Type still '$MailboxType' after conversion - license removal will be SKIPPED (RETAINED for safety)"
-            }
-        }
     } catch {
         # Distinguish "no mailbox" (safe to remove licenses) from a real failure.
         if ("$($_.Exception.Message)" -match "couldn't be found|not found|ManagementObjectNotFound") {
             $MailboxType = $null
             Add-Result $Upn $Display 'Convert to Shared' 'Skipped' 'No mailbox found for this user'
         } else {
-            # Mailbox likely exists but conversion/lookup failed - do NOT remove licenses.
-            if (-not $MailboxType) { $MailboxType = 'Unknown' }
+            $MailboxType = 'Unknown'
+            Write-Log "Convert to Shared - mailbox lookup failed for ${Upn}: $($_.Exception.Message)" 'ERROR'
+            Add-Result $Upn $Display 'Convert to Shared' 'Failed' "Mailbox lookup failed: $($_.Exception.Message) - license removal will be SKIPPED (RETAINED for safety)"
+        }
+    }
+
+    if ($MailboxType -eq 'SharedMailbox') {
+        # Already shared - treat as success, no conversion needed.
+        $ConvertedToShared = $true
+        Add-Result $Upn $Display 'Convert to Shared' 'Success' 'Mailbox already Shared'
+    } elseif ($MailboxType -and $MailboxType -ne 'Unknown') {
+        # Step 1: run the conversion and check whether the command itself errors.
+        $convertErrored = $false
+        try {
+            Set-Mailbox -Identity $Upn -Type Shared -ErrorAction Stop
+        } catch {
+            $convertErrored = $true
+            Write-Log "Convert to Shared failed for ${Upn}: $($_.Exception.Message)" 'ERROR'
             Add-Result $Upn $Display 'Convert to Shared' 'Failed' "$($_.Exception.Message) - license removal will be SKIPPED (RETAINED for safety)"
+        }
+
+        # Step 2: no error - poll until EXO reports the new type. The conversion
+        # command returns before the type change has replicated, so an immediate
+        # read can still show the old type; re-check every $PollSeconds up to
+        # $MaxWaitSeconds and pass as soon as it reads SharedMailbox.
+        if (-not $convertErrored) {
+            $PollSeconds    = 10
+            $MaxWaitSeconds = 60
+            $Waited         = 0
+            while ($Waited -lt $MaxWaitSeconds -and -not $ConvertedToShared) {
+                Start-Sleep -Seconds $PollSeconds
+                $Waited += $PollSeconds
+                try {
+                    $verify = Get-Mailbox -Identity $Upn -ErrorAction Stop
+                    $MailboxType = "$($verify.RecipientTypeDetails)"
+                    if ($MailboxType -eq 'SharedMailbox') { $ConvertedToShared = $true }
+                } catch {
+                    Write-Log "Convert to Shared - verify read failed for $Upn (will keep polling): $($_.Exception.Message)" 'WARN' -NoConsole
+                }
+            }
+            if ($ConvertedToShared) {
+                Add-Result $Upn $Display 'Convert to Shared' 'Success' "Mailbox type = Shared (confirmed after ${Waited}s)"
+            } else {
+                Add-Result $Upn $Display 'Convert to Shared' 'Failed' "Type still '$MailboxType' after ${MaxWaitSeconds}s - license removal will be SKIPPED (RETAINED for safety)"
+            }
         }
     }
 
