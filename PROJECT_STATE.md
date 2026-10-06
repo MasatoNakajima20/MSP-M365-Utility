@@ -4,8 +4,8 @@ Living status log for the MSP M365 Utility. Update after every meaningful change
 
 - **Repo:** https://github.com/MasatoNakajima20/MSP-M365-Utility (public)
 - **Local path:** `C:\Claude Projects\MSP 365 Reporting Tool`
-- **Current release:** `0.15.0-beta`
-- **Launcher `$script:Version`:** `0.15.0-beta`
+- **Current release:** `0.15.1-beta`
+- **Launcher `$script:Version`:** `0.15.1-beta`
 - **Last updated:** 2026-10-06
 
 ---

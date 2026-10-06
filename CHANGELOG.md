@@ -7,6 +7,16 @@ project uses SemVer with a `-beta` suffix. This file was introduced at
 `0.13.0-beta`; earlier version history is available via the git tags
 (`0.1.0-beta` … `0.12.1-beta`).
 
+## [0.15.1-beta] - 2026-10-06
+### Fixed
+- `Invoke-UserOffboarding`: shared-mailbox conversions were being flagged as
+  failed (and licenses wrongly RETAINED) because the type was verified
+  immediately, before Exchange Online had replicated the change. The convert
+  command's own error is now checked first and logged to console + file; when
+  it does not error, the mailbox type is polled every 10s for up to 60s and
+  passes as soon as it reads SharedMailbox. A conversion that never confirms
+  within 60s is logged Failed and its license is retained for safety.
+
 ## [0.15.0-beta] - 2026-10-06
 ### Fixed
 - `Invoke-UserOffboarding`: CRITICAL license-safety fix - licenses are now
